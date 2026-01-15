@@ -10,18 +10,18 @@
 GraphicsModule::GraphicsModule(HINSTANCE hInstance, int nCmdShow) {
     this->CreateWindowModule(hInstance, nCmdShow);
 
-    this->InitD2D(hwnd);
+    this->InitD2D();
 }
 
 GraphicsModule::~GraphicsModule() {
     this->CleanupD2D();
 }
 
-void GraphicsModule::InitD2D(HWND hwnd) {
-    D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &factory);
+void GraphicsModule::InitD2D() {
+    D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &(this->factory));
 
     RECT rc;
-    GetClientRect(hwnd, &rc);
+    GetClientRect(this->hwnd, &rc);
 
     D2D1_RENDER_TARGET_PROPERTIES props = 
         D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT,
@@ -29,33 +29,28 @@ void GraphicsModule::InitD2D(HWND hwnd) {
                                                        D2D1_ALPHA_MODE_IGNORE));
 
     D2D1_HWND_RENDER_TARGET_PROPERTIES hwndProps =
-        D2D1::HwndRenderTargetProperties(hwnd,
+        D2D1::HwndRenderTargetProperties(this->hwnd,
                                          D2D1::SizeU(rc.right - rc.left, rc.bottom - rc.top),
                                          D2D1_PRESENT_OPTIONS_NONE); // VSync enabled
 
-    factory->CreateHwndRenderTarget(&props, &hwndProps, &renderTarget);
-
-    // Create initial bitmap
-    D2D1_BITMAP_PROPERTIES bmpProps =
-        D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM,
-                                                 D2D1_ALPHA_MODE_IGNORE));
-    renderTarget->CreateBitmap(D2D1::SizeU(CLIENT_SCREEN_WIDTH, CLIENT_SCREEN_HEIGHT), bmpProps, &bitmap);
+    factory->CreateHwndRenderTarget(&props, &hwndProps, &(this->renderTarget));
+    this->renderTarget->CreateSolidColorBrush(D2D1::ColorF(0xFF0000), &(this->brush));
 }
 
 void GraphicsModule::CleanupD2D() {
-    if (bitmap) bitmap->Release();
-    if (renderTarget) renderTarget->Release();
+    if (this->brush) brush->Release();
+    // if (bitmap) bitmap->Release();
+    if (this->renderTarget) renderTarget->Release();
     if (factory) factory->Release();
 }
 
 void GraphicsModule::RenderFrame(UINT32* pixels) {
-    D2D1_RECT_U rect = {0, 0, (UINT32)CLIENT_SCREEN_WIDTH, (UINT32)CLIENT_SCREEN_HEIGHT};
-    this->bitmap->CopyFromMemory(&rect, pixels, CLIENT_SCREEN_WIDTH * 4);
-
     this->renderTarget->BeginDraw();
-    this->renderTarget->Clear(D2D1::ColorF(0, 0, 0));
+    this->renderTarget->Clear(D2D1::ColorF(0xe3e3e3));
 
-    this->renderTarget->DrawBitmap(this->bitmap);
+    D2D1_ELLIPSE ellipse = D2D1::Ellipse(D2D1::Point2F(250, 350), 25, 45);
+    renderTarget->FillEllipse(ellipse, this->brush);
+
     this->renderTarget->EndDraw(); // BLOCKS for VSync
 }
 
@@ -70,7 +65,7 @@ void GraphicsModule::CreateWindowModule(HINSTANCE hInstance, int nCmdShow) {
 
     RegisterClassW(&wc);
 
-    RECT rect = {0, 0, 648, 768};
+    RECT rect = {0, 0, CLIENT_SCREEN_WIDTH, CLIENT_SCREEN_HEIGHT};
     AdjustWindowRectEx(&rect, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, FALSE, 0);
 
     int screenWidth = GetSystemMetrics(SM_CXSCREEN);

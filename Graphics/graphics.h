@@ -8,7 +8,7 @@ class GraphicsModule {
 private:
     ID2D1Factory* factory = nullptr;
     ID2D1HwndRenderTarget* renderTarget = nullptr;
-    ID2D1Bitmap* bitmap = nullptr;
+    ID2D1SolidColorBrush* brush = nullptr;
 
     HWND hwnd = NULL;
 
@@ -19,7 +19,7 @@ public:
     void RenderFrame(UINT32* pixels);
 
 private:
-    void InitD2D(HWND hwnd);
+    void InitD2D();
     void CleanupD2D();
 
     void CreateWindowModule(HINSTANCE hInstance, int nCmdShow);

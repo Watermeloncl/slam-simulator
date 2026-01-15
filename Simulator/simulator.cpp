@@ -14,7 +14,8 @@ Simulator::Simulator(HINSTANCE hInstance, int nCmdShow) {
 }
 
 Simulator::~Simulator() {
-
+    delete this->graphicsModule;
+    delete[] g_pixels;
 }
 
 void Simulator::RunMainLoop() {
@@ -27,7 +28,7 @@ void Simulator::RunMainLoop() {
 
     MSG msg = {};
 
-    int frame = 0;
+    // int frame = 0;
     bool running = true;
 
     while(running) {
@@ -42,28 +43,12 @@ void Simulator::RunMainLoop() {
         lastTime = now;
         accumulator += elapsed.count();
 
-        UINT r, g, b;
-
         while(accumulator >= dt) {
-            frame++;
-
-            // pretty colors
-            for(int y = 0; y < CLIENT_SCREEN_HEIGHT; y++) {
-                for (int x = 0; x < CLIENT_SCREEN_WIDTH; x++) {
-                    r = (x + frame) % 256;
-                    g = (y + frame) % 256;
-                    b = (x + y + frame) % 256;
-                    g_pixels[y * CLIENT_SCREEN_WIDTH + x] = 0xFF000000 | (r << 16) | (g << 8) | b;
-                }
-            }
+            // frame++;
             
             accumulator -= dt;
         }
 
-        //blocks until the end of the "frame" forcing another frame next time
         this->graphicsModule->RenderFrame(g_pixels);
     }
-
-    delete this->graphicsModule;
-    delete[] g_pixels;
 }

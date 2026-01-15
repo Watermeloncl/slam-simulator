@@ -9,7 +9,7 @@ public:
     Simulator(HINSTANCE hInstance, int nCmdShow);
     ~Simulator();
 private:
-    GraphicsModule* graphicsModule = NULL;
+    GraphicsModule* graphicsModule = nullptr;
 public:
     void RunMainLoop();
 private:
