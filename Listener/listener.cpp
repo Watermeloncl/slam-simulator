@@ -1,6 +1,5 @@
 #include <windows.h>
 #include <windowsx.h>
-#include "listener.h"
 
 #include "listener.h"
 

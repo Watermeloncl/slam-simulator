@@ -1,10 +1,11 @@
 #include <windows.h>
-#include <d2d1.h>
+#include <d2d1_1.h>
 #include <iostream>
+#include <unordered_map>
 
-#include "../config.h"
 #include "graphics.h"
 #include "..\Listener\listener.h"
+#include "../config.h"
 
 
 GraphicsModule::GraphicsModule(HINSTANCE hInstance, int nCmdShow) {
@@ -18,40 +19,50 @@ GraphicsModule::~GraphicsModule() {
 }
 
 void GraphicsModule::InitD2D() {
-    D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &(this->factory));
+    D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory1), (void**)&factory);
 
     RECT rc;
     GetClientRect(this->hwnd, &rc);
 
-    D2D1_RENDER_TARGET_PROPERTIES props = 
-        D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT,
-                                     D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM,
-                                                       D2D1_ALPHA_MODE_IGNORE));
+    ID2D1HwndRenderTarget* hwndRT = nullptr;
+    D2D1_RENDER_TARGET_PROPERTIES props = D2D1::RenderTargetProperties();
+    D2D1_HWND_RENDER_TARGET_PROPERTIES hwndProps = D2D1::HwndRenderTargetProperties(this->hwnd, D2D1::SizeU(rc.right, rc.bottom));
 
-    D2D1_HWND_RENDER_TARGET_PROPERTIES hwndProps =
-        D2D1::HwndRenderTargetProperties(this->hwnd,
-                                         D2D1::SizeU(rc.right - rc.left, rc.bottom - rc.top),
-                                         D2D1_PRESENT_OPTIONS_NONE); // VSync enabled
+    factory->CreateHwndRenderTarget(&props, &hwndProps, &hwndRT);
 
-    factory->CreateHwndRenderTarget(&props, &hwndProps, &(this->renderTarget));
-    this->renderTarget->CreateSolidColorBrush(D2D1::ColorF(0xFF0000), &(this->brush));
+    hwndRT->QueryInterface(__uuidof(ID2D1DeviceContext), (void**)&deviceContext);
+    
+    this->deviceContext->GetTarget(&this->targetBitmap);
+
+    hwndRT->Release();
+
+    for(int i = 0; i < COLOR_PALETTE_SIZE; i++) {
+        ID2D1SolidColorBrush* tempBrush = nullptr;
+        this->deviceContext->CreateSolidColorBrush(D2D1::ColorF(COLOR_PALETTE_VALUES[i]), &tempBrush);
+        this->brushes[COLOR_PALETTE_VALUES[i]] = tempBrush;
+    }
+
+    this->CreateResources();
 }
 
 void GraphicsModule::CleanupD2D() {
-    if (this->brush) brush->Release();
-    // if (bitmap) bitmap->Release();
-    if (this->renderTarget) renderTarget->Release();
-    if (factory) factory->Release();
+    for(int i = 0; i < COLOR_PALETTE_SIZE; i++) {
+        if(this->brushes[COLOR_PALETTE_VALUES[i]]) this->brushes[COLOR_PALETTE_VALUES[i]]->Release();
+    }
+    this->brushes.clear();
+    if(this->commandList) this->commandList->Release();
+    if(this->targetBitmap) this->targetBitmap->Release();
+    if (this->deviceContext) this->deviceContext->Release();
+    if (this->factory) this->factory->Release();
 }
 
-void GraphicsModule::RenderFrame(UINT32* pixels) {
-    this->renderTarget->BeginDraw();
-    this->renderTarget->Clear(D2D1::ColorF(0xe3e3e3));
+void GraphicsModule::RenderFrame() {
+    this->deviceContext->BeginDraw();
+    this->deviceContext->Clear(D2D1::ColorF(COLOR_PALETTE_BACKGROUND));
 
-    D2D1_ELLIPSE ellipse = D2D1::Ellipse(D2D1::Point2F(250, 350), 25, 45);
-    renderTarget->FillEllipse(ellipse, this->brush);
+    this->RenderBackground();
 
-    this->renderTarget->EndDraw(); // BLOCKS for VSync
+    this->deviceContext->EndDraw(); // BLOCKS for VSync
 }
 
 void GraphicsModule::CreateWindowModule(HINSTANCE hInstance, int nCmdShow) {
@@ -91,4 +102,22 @@ void GraphicsModule::CreateWindowModule(HINSTANCE hInstance, int nCmdShow) {
     }
 
     ShowWindow(hwnd, nCmdShow);
+}
+
+void GraphicsModule::RenderBackground() {
+    if(this->commandList) {
+        this->deviceContext->DrawImage(this->commandList);
+    }
+}
+
+void GraphicsModule::CreateResources() {
+    deviceContext->CreateCommandList(&this->commandList);
+    deviceContext->SetTarget(this->commandList);
+    deviceContext->BeginDraw();
+
+    deviceContext->DrawLine(D2D1::Point2F(30, 30), D2D1::Point2F(36.4f, 30), this->brushes[COLOR_PALETTE_BLACK], 2);
+
+    deviceContext->EndDraw();
+    this->commandList->Close();
+    deviceContext->SetTarget(this->targetBitmap); 
 }

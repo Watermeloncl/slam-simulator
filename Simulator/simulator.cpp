@@ -7,15 +7,12 @@ using SchedClock = std::chrono::high_resolution_clock;
 using Duration = std::chrono::duration<double>;
 using TimeStamp = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-UINT32* g_pixels = new UINT32[CLIENT_SCREEN_WIDTH * CLIENT_SCREEN_HEIGHT];
-
 Simulator::Simulator(HINSTANCE hInstance, int nCmdShow) {
     this->graphicsModule = new GraphicsModule(hInstance, nCmdShow);
 }
 
 Simulator::~Simulator() {
     delete this->graphicsModule;
-    delete[] g_pixels;
 }
 
 void Simulator::RunMainLoop() {
@@ -49,6 +46,6 @@ void Simulator::RunMainLoop() {
             accumulator -= dt;
         }
 
-        this->graphicsModule->RenderFrame(g_pixels);
+        this->graphicsModule->RenderFrame();
     }
 }
