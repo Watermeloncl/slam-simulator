@@ -4,7 +4,9 @@
 #include <windows.h>
 #include <d2d1_1.h>
 #include <unordered_map>
+#include <utility>
 
+#include "..\World\map.h"
 #include "..\config.h"
 
 class GraphicsModule {
@@ -23,6 +25,7 @@ public:
     ~GraphicsModule();
 
     void RenderFrame();
+    void CreateBackground(Map* map);
 
 private:
     void InitD2D();
@@ -30,8 +33,9 @@ private:
 
     void CreateWindowModule(HINSTANCE hInstance, int nCmdShow);
 
-    void RenderBackground();
-    void CreateResources();
+    void DrawStaticElements();
+
+    std::pair<float, float> XYToDipsBackground(int quadrant, float x, float y);
 };
 
 #endif

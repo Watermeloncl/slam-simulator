@@ -1,6 +1,8 @@
 #include <chrono>
 
 #include "simulator.h"
+#include "..\Graphics\graphics.h"
+#include "..\World\world.h"
 #include "..\config.h"
 
 using SchedClock = std::chrono::high_resolution_clock;
@@ -9,6 +11,9 @@ using TimeStamp = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 Simulator::Simulator(HINSTANCE hInstance, int nCmdShow) {
     this->graphicsModule = new GraphicsModule(hInstance, nCmdShow);
+    
+    this->world = new World();
+    this->graphicsModule->CreateBackground(this->world->GetMap());
 }
 
 Simulator::~Simulator() {

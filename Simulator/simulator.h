@@ -2,9 +2,14 @@
 #define SIMULATOR_H_
 
 #include <windows.h>
+
 #include "..\Graphics\graphics.h"
+#include "..\World\world.h"
 
 class Simulator {
+private:
+    World* world = nullptr;
+
 public:
     Simulator(HINSTANCE hInstance, int nCmdShow);
     ~Simulator();
