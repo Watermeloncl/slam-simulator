@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "renderPacket.h"
 #include "..\World\map.h"
 #include "..\config.h"
 
@@ -19,6 +20,7 @@ private:
     std::unordered_map<int, ID2D1SolidColorBrush*> brushes;
 
     HWND hwnd = NULL;
+    RenderPacket* currentPacket = nullptr;
 
 public:
     GraphicsModule(HINSTANCE hInstance, int nCmdShow);
@@ -26,6 +28,11 @@ public:
 
     void RenderFrame();
     void CreateBackground(Map* map);
+
+    void UpdateRenderInfo(RenderPacket* incoming);
+
+    void DrawRobot();
+    void DrawPointCloud();
 
 private:
     void InitD2D();

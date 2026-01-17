@@ -5,8 +5,21 @@
 #define SLAM_OPTION_EKF 0
 #define SLAM_OPTION_GMAPPING 1
 
-const int STARTING_MAP = 3;
+const int STARTING_MAP = 2;
 const int STARTING_SLAM = SLAM_OPTION_EKF;
+const bool SHOW_POSSIBLE_STARTING_LOCATIONS = false;
+
+// Sensor Model Details; 360 degrees
+const int SENSOR_MODEL_POINTS_PER_SCAN = 1455; // 1455 default (8000 / 5.5Hz)
+const float SENSOR_MODEL_TIME_PER_SCAN = 1.0f / 5.5f; // default (1.0 second / 5.5 Hz)
+const int SENSOR_MODEL_MEASURE_MIN = 150;   // 150 default
+const int SENSOR_MODEL_MEASURE_MAX = 12000; // 12000 default
+
+
+// Motion Model Details
+const float MOTION_MODEL_ACCELERATION = 500.0f; // mm/s^2
+const float MOTION_MODEL_MAX_VELOCITY = 300.0f; // mm/s
+
 
 ///////////////////////////////////////////////
 //// Do not touch any parameters here down ////
@@ -28,16 +41,16 @@ const float MM_PER_DIP = 18.75;
 //  1) increase size
 //  2) add color to const ints
 //  3) add that const int to value set
-const int COLOR_PALETTE_SIZE = 3; //4
+const int COLOR_PALETTE_SIZE = 4;
 
 const int COLOR_PALETTE_BACKGROUND = 0xe3e3e3;
-// const int COLOR_PALETTE_RED = 0xFF0000;
+const int COLOR_PALETTE_RED = 0xFF0000;
 const int COLOR_PALETTE_WHITE = 0xFFFFFF;
 const int COLOR_PALETTE_BLACK = 0x000000;
 
 const int COLOR_PALETTE_VALUES[COLOR_PALETTE_SIZE] = {
     COLOR_PALETTE_BACKGROUND,
-    // COLOR_PALETTE_RED,
+    COLOR_PALETTE_RED,
     COLOR_PALETTE_WHITE,
     COLOR_PALETTE_BLACK
 };
@@ -46,8 +59,13 @@ const int COLOR_PALETTE_VALUES[COLOR_PALETTE_SIZE] = {
 const int BACKGROUND_LINE_WIDTH = 4;
 const int MAP_LINE_WIDTH = 2;
 
+const int ROBOT_RADIUS = 8;
+
+const float LIDAR_POINT_RADIUS = 2.0F;
+
 // Map Specs
 const int MAX_MAP_LINES = 64;
+const int MAX_MAP_STARTS = 16;
 
 // Quadrants
 const int TOP_LEFT = 1;

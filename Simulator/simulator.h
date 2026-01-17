@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include "..\Graphics\graphics.h"
+#include "..\Graphics\renderPacket.h"
 #include "..\World\world.h"
 #include "..\Models\robotModel.h"
 #include "..\AI\ai.h"

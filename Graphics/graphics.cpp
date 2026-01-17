@@ -3,11 +3,15 @@
 #include <iostream>
 #include <unordered_map>
 #include <utility>
+#include <cmath>
 
 #include "graphics.h"
 #include "..\Listener\listener.h"
 #include "..\World\map.h"
 #include "..\World\Objects\oline.h"
+#include "..\World\Objects\opoint.h"
+#include "..\Utilities\mathUtilities.h"
+// #include "..\Models\Lidar\polarPoint.h"
 #include "../config.h"
 
 
@@ -19,6 +23,7 @@ GraphicsModule::GraphicsModule(HINSTANCE hInstance, int nCmdShow) {
 
 GraphicsModule::~GraphicsModule() {
     this->CleanupD2D();
+    delete this->currentPacket;
 }
 
 void GraphicsModule::InitD2D() {
@@ -65,6 +70,8 @@ void GraphicsModule::RenderFrame() {
     this->DrawStaticElements();
 
     //draw dynamic elements. consider push axis aligned clip and setTransform
+    this->DrawRobot();
+    this->DrawPointCloud(); //check if nullptr!
 
     this->deviceContext->EndDraw(); // BLOCKS for VSync
 }
@@ -89,7 +96,7 @@ void GraphicsModule::CreateBackground(Map* map) {
     OLine** lines = map->GetLines();
     std::pair<float, float> temp1, temp2;
 
-    for(int i = 0; i < map->GetLineSize(); i++) {
+    for(int i = 0; i < map->GetLinesSize(); i++) {
         temp1 = this->XYToDipsBackground(TOP_RIGHT, lines[i]->point1->x, lines[i]->point1->y);
         temp2 = this->XYToDipsBackground(TOP_RIGHT, lines[i]->point2->x, lines[i]->point2->y);        
 
@@ -101,10 +108,71 @@ void GraphicsModule::CreateBackground(Map* map) {
         );
     }
 
+    if(SHOW_POSSIBLE_STARTING_LOCATIONS) {
+        OPoint** starts = map->GetStarts();
+        for(int i = 0; i < map->GetStartsSize(); i++) {
+            temp1 = this->XYToDipsBackground(TOP_RIGHT, starts[i]->x, starts[i]->y);
+            deviceContext->DrawEllipse(
+                D2D1::Ellipse(D2D1::Point2F(temp1.first, temp1.second), ROBOT_RADIUS, ROBOT_RADIUS),
+                this->brushes[COLOR_PALETTE_BLACK],
+                1.5,
+                nullptr
+            );
+        }
+    }
+
     // End context
     deviceContext->EndDraw();
     this->commandList->Close();
     deviceContext->SetTarget(this->targetBitmap); 
+}
+
+void GraphicsModule::UpdateRenderInfo(RenderPacket* incoming) {
+    delete this->currentPacket;
+    this->currentPacket = incoming;
+}
+
+void GraphicsModule::DrawRobot() {
+    int quadrants[] = {BOTTOM_LEFT, TOP_RIGHT};
+    for(int i = 0; i < 2; i++) {
+        std::pair<float, float> temp = this->XYToDipsBackground(quadrants[i], this->currentPacket->realX, this->currentPacket->realY);
+        deviceContext->DrawEllipse(
+            D2D1::Ellipse(D2D1::Point2F(temp.first, temp.second), ROBOT_RADIUS, ROBOT_RADIUS),
+            this->brushes[COLOR_PALETTE_BLACK],
+            1.5,
+            nullptr
+        );
+
+        deviceContext->DrawLine(
+            D2D1::Point2F(temp.first, temp.second),
+            D2D1::Point2F(temp.first + (ROBOT_RADIUS * std::cos(this->currentPacket->realTheta)),
+                          temp.second - (ROBOT_RADIUS * std::sin(this->currentPacket->realTheta))),
+            this->brushes[COLOR_PALETTE_BLACK],
+            2,
+            nullptr
+        );
+    }
+}
+
+void GraphicsModule::DrawPointCloud() {
+    if(this->currentPacket->pointCloud == nullptr) {
+        return;
+    }
+
+    OPoint* tempPoint;
+
+    for(int i = 0; i < SENSOR_MODEL_POINTS_PER_SCAN; i++) {
+        if(this->currentPacket->pointCloud[i] == nullptr) {
+            break;
+        }
+
+        tempPoint = this->currentPacket->pointCloud[i];
+        std::pair<float, float> temp = XYToDipsBackground(BOTTOM_LEFT, tempPoint->x, tempPoint->y);
+        deviceContext->FillEllipse(
+            D2D1::Ellipse(D2D1::Point2F(temp.first, temp.second), LIDAR_POINT_RADIUS, LIDAR_POINT_RADIUS),
+            this->brushes[COLOR_PALETTE_RED]
+        );
+    }
 }
 
 void GraphicsModule::CreateWindowModule(HINSTANCE hInstance, int nCmdShow) {

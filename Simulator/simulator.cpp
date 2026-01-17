@@ -1,9 +1,13 @@
 #include <chrono>
+#include <iostream>
 
 #include "simulator.h"
 #include "..\Graphics\graphics.h"
+#include "..\Graphics\renderPacket.h"
 #include "..\World\world.h"
+#include "..\World\Objects\opoint.h"
 #include "..\Models\robotModel.h"
+#include "..\Models\Lidar\pointCloud.h"
 #include "..\AI\ai.h"
 #include "..\SLAMModels\Templates\slam.h"
 #include "..\SLAMModels\EKF\ekf.h"
@@ -42,11 +46,24 @@ void Simulator::RunMainLoop() {
 
     Duration elapsed;
     double accumulator = 0.0;
-    const double dt = 1.0 / 60.0;
+    //TODO change back to 60 fps, just only scan every x movement
+    // thread scanning
+    const double dt = SENSOR_MODEL_TIME_PER_SCAN;
 
     MSG msg = {};
 
-    // int frame = 0;
+    this->robotModel->InitializeRobot(this->world->GetMap());
+
+    RenderPacket* renderPacket = new RenderPacket(
+        this->robotModel->GetRealX(),
+        this->robotModel->GetRealY(),
+        this->robotModel->GetRealTheta(),
+        nullptr
+    );
+            
+    this->graphicsModule->UpdateRenderInfo(renderPacket);
+
+    int frame = 0;
     bool running = true;
 
     while(running) {
@@ -56,13 +73,46 @@ void Simulator::RunMainLoop() {
             DispatchMessage(&msg);
         }
 
+        //act on messages
+        // - pause (space)
+        // - reset (r)
+        // - change map and reset (m)
+        // - probability toggle (p)
+        // - algorithm change (a)
+        // - Change Trajectory (click top right)
+
         now = SchedClock::now();
         elapsed = now - lastTime;
         lastTime = now;
         accumulator += elapsed.count();
 
         while(accumulator >= dt) {
-            // frame++;
+            frame++;
+
+            //command = GetNextCommand();
+            //refinedCommand = CommandRobot();
+
+            this->robotModel->DummyUpdate(); //tmp
+
+            PointCloud* pointCloud = this->robotModel->GetScan();
+            OPoint** renderPointCloud = this->robotModel->GetRenderScan();
+
+            //UpdateSlam(pointCloud);
+            delete pointCloud;
+
+            //map = GetMap();
+            //pose = GetPose();
+            //reality = GetTruePose();
+            //Trajectory = UpdateTrajectory();
+
+            RenderPacket* renderPacket = new RenderPacket(
+                this->robotModel->GetRealX(),
+                this->robotModel->GetRealY(),
+                this->robotModel->GetRealTheta(),
+                renderPointCloud
+            );
+            
+            this->graphicsModule->UpdateRenderInfo(renderPacket);
             
             accumulator -= dt;
         }
