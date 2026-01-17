@@ -3,6 +3,11 @@
 #include "simulator.h"
 #include "..\Graphics\graphics.h"
 #include "..\World\world.h"
+#include "..\Models\robotModel.h"
+#include "..\AI\ai.h"
+#include "..\SLAMModels\Templates\slam.h"
+#include "..\SLAMModels\EKF\ekf.h"
+#include "..\SLAMModels\Gmapping\gmapping.h"
 #include "..\config.h"
 
 using SchedClock = std::chrono::high_resolution_clock;
@@ -14,10 +19,21 @@ Simulator::Simulator(HINSTANCE hInstance, int nCmdShow) {
     
     this->world = new World();
     this->graphicsModule->CreateBackground(this->world->GetMap());
+
+    this->robotModel = new RobotModel();
+    this->aiModule = new AIModule();
+
+    if(STARTING_SLAM == SLAM_OPTION_EKF) {
+        this->slamModule = new EKF();
+    } else {
+        this->slamModule = new Gmapping();
+    }
 }
 
 Simulator::~Simulator() {
     delete this->graphicsModule;
+    delete this->world;
+    delete this->robotModel;
 }
 
 void Simulator::RunMainLoop() {

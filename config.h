@@ -1,7 +1,12 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
+// Possible SLAM options
+#define SLAM_OPTION_EKF 0
+#define SLAM_OPTION_GMAPPING 1
+
 const int STARTING_MAP = 3;
+const int STARTING_SLAM = SLAM_OPTION_EKF;
 
 ///////////////////////////////////////////////
 //// Do not touch any parameters here down ////

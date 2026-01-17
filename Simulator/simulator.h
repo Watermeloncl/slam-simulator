@@ -5,10 +5,16 @@
 
 #include "..\Graphics\graphics.h"
 #include "..\World\world.h"
+#include "..\Models\robotModel.h"
+#include "..\AI\ai.h"
+#include "..\SLAMModels\Templates\slam.h"
 
 class Simulator {
 private:
     World* world = nullptr;
+    RobotModel* robotModel = nullptr;
+    AIModule* aiModule = nullptr;
+    SLAMModule* slamModule = nullptr;
 
 public:
     Simulator(HINSTANCE hInstance, int nCmdShow);
