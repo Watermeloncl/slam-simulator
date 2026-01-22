@@ -49,6 +49,9 @@ void Simulator::RunMainLoop() {
     //TODO change back to 60 fps, just only scan every x movement
     // thread scanning
     const double dt = SENSOR_MODEL_TIME_PER_SCAN;
+    //const double dt = 1.0 / 60.0;
+
+
 
     MSG msg = {};
 
@@ -94,8 +97,11 @@ void Simulator::RunMainLoop() {
 
             this->robotModel->DummyUpdate(); //tmp
 
+            auto start = std::chrono::high_resolution_clock::now();
             PointCloud* pointCloud = this->robotModel->GetScan();
             OPoint** renderPointCloud = this->robotModel->GetRenderScan();
+            auto end = std::chrono::high_resolution_clock::now();
+            std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;
 
             //UpdateSlam(pointCloud);
             delete pointCloud;

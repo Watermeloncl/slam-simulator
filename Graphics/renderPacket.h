@@ -5,13 +5,13 @@
 
 struct RenderPacket {
 public:
-    float realX;
-    float realY;
-    float realTheta;
+    double realX;
+    double realY;
+    double realTheta;
 
     OPoint** pointCloud;
 
-    RenderPacket(float realX, float realY, float realTheta, OPoint** pointCloud);
+    RenderPacket(double realX, double realY, double realTheta, OPoint** pointCloud);
     ~RenderPacket();
 };
 

@@ -3,11 +3,11 @@
 
 struct OPoint {
 public:
-    OPoint(float x, float y);
+    OPoint(double x, double y);
     ~OPoint();
 
-    float x;
-    float y;
+    double x;
+    double y;
 
     void Print();
 };

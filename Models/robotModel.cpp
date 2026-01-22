@@ -30,28 +30,27 @@ void RobotModel::InitializeRobot(Map* map) {
     this->motionModel->SetStartPosition(
         map->GetStart(startIndex)->x,
         map->GetStart(startIndex)->y,
-        (float)Utilities::GetRandomInt(0, 6)
+        (double)Utilities::GetRandomInt(0, 6)
     );
 }
 
 // Rendering function
-float RobotModel::GetRealX() {
+double RobotModel::GetRealX() {
     return this->motionModel->GetRealX();
 }
 
 // Rendering function
-float RobotModel::GetRealY() {
+double RobotModel::GetRealY() {
     return this->motionModel->GetRealY();
 }
 
 // Rendering function
-float RobotModel::GetRealTheta() {
+double RobotModel::GetRealTheta() {
     return this->motionModel->GetRealTheta();
 }
 
 PointCloud* RobotModel::GetScan() {
     // given the robots current position and where it's going to be,
-    // calculate speed and if it's accelerating/deccelerating
     // pass that to sensor model and get back a polar point cloud
 
     return this->sensorModel->GetScan(

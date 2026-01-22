@@ -3,10 +3,10 @@
 
 struct PolarPoint {
 public:
-    float range;
-    float theta;
+    double range;
+    double theta;
 
-    PolarPoint(float range, float theta);
+    PolarPoint(double range, double theta);
     ~PolarPoint();
 
     void Print();

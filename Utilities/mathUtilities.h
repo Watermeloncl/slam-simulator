@@ -7,9 +7,9 @@
 
 class MathUtilities {
 public:
-    static float PI;
+    static double PI;
 
-    static std::pair<float, float> PolarToCartesian(float range, float theta, float cx, float cy);
+    static std::pair<double, double> PolarToCartesian(double range, double theta, double cx, double cy);
 private:
     MathUtilities() = default;
 };

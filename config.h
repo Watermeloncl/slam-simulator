@@ -1,6 +1,8 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
+#include <utility>
+
 // Possible SLAM options
 #define SLAM_OPTION_EKF 0
 #define SLAM_OPTION_GMAPPING 1
@@ -11,14 +13,24 @@ const bool SHOW_POSSIBLE_STARTING_LOCATIONS = false;
 
 // Sensor Model Details; 360 degrees
 const int SENSOR_MODEL_POINTS_PER_SCAN = 1455; // 1455 default (8000 / 5.5Hz)
-const float SENSOR_MODEL_TIME_PER_SCAN = 1.0f / 5.5f; // default (1.0 second / 5.5 Hz)
+const double SENSOR_MODEL_TIME_PER_SCAN = 1.0 / 5.5; // default (1.0 second / 5.5 Hz)
 const int SENSOR_MODEL_MEASURE_MIN = 150;   // 150 default
 const int SENSOR_MODEL_MEASURE_MAX = 12000; // 12000 default
 
+// Defaults based on lidar specs {1% <= 3000, 2% 3-5, 2.5% 5+}. Be sure to cover measurement range.
+const int SENSOR_MODEL_ACCURACY_TIERS = 3;
+const std::pair<double, double> SENSOR_MODEL_ACCURACY[SENSOR_MODEL_ACCURACY_TIERS] = {
+    {0.01, 3000},
+    {0.02, 5000},
+    {0.025, 25000}
+};
+
+// Default based on lidar specs is 1% < 12 meters. For simplicity, one range resolution for all distances
+const double SENSOR_MODEL_RANGE_RESOLUTION = 0.01;
 
 // Motion Model Details
-const float MOTION_MODEL_ACCELERATION = 500.0f; // mm/s^2
-const float MOTION_MODEL_MAX_VELOCITY = 300.0f; // mm/s
+const double MOTION_MODEL_ACCELERATION = 500.0; // mm/s^2
+const double MOTION_MODEL_MAX_VELOCITY = 300.0; // mm/s
 
 
 ///////////////////////////////////////////////
@@ -34,7 +46,7 @@ const int CLIENT_SCREEN_HEIGHT = 720;
 const int WORLD_SIZE_METERS_WIDTH = 12000;
 const int WORLD_SIZE_METERS_HEIGHT = 6750;
 
-const float MM_PER_DIP = 18.75;
+const double MM_PER_DIP = 18.75;
 
 // Colors
 // To add brush/color, you must:
@@ -61,7 +73,7 @@ const int MAP_LINE_WIDTH = 2;
 
 const int ROBOT_RADIUS = 8;
 
-const float LIDAR_POINT_RADIUS = 2.0F;
+const double LIDAR_POINT_RADIUS = 2.0;
 
 // Map Specs
 const int MAX_MAP_LINES = 64;

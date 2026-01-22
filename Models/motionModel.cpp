@@ -15,31 +15,31 @@ void MotionModel::GiveMap(Map* map) {
     this->map = map;
 }
 
-float MotionModel::GetPrevX() {
+double MotionModel::GetPrevX() {
     return this->prevX;
 }
 
-float MotionModel::GetPrevY() {
+double MotionModel::GetPrevY() {
     return this->prevY;
 }
 
-float MotionModel::GetPrevTheta() {
+double MotionModel::GetPrevTheta() {
     return this->prevTheta;
 }
 
-float MotionModel::GetRealX() {
+double MotionModel::GetRealX() {
     return this->realX;
 }
 
-float MotionModel::GetRealY() {
+double MotionModel::GetRealY() {
     return this->realY;
 }
 
-float MotionModel::GetRealTheta() {
+double MotionModel::GetRealTheta() {
     return this->realTheta;
 }
 
-void MotionModel::SetStartPosition(float x, float y, float theta) {
+void MotionModel::SetStartPosition(double x, double y, double theta) {
     this->realX = x;
     this->prevX = x;
     this->realY = y;
@@ -55,6 +55,6 @@ void MotionModel::DummyUpdate() {
     this->prevX = this->realX;
     this->prevY = this->realY;
 
-    this->realX += (54.0F * (float)cos(this->realTheta));
-    this->realY += (54.0F * (float)sin(this->realTheta));
+    this->realX += (54.0F * (double)cos(this->realTheta));
+    this->realY += (54.0F * (double)sin(this->realTheta));
 }

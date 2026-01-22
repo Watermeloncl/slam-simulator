@@ -2,7 +2,7 @@
 
 #include "opoint.h"
 
-OPoint::OPoint(float x, float y) {
+OPoint::OPoint(double x, double y) {
     this->x = x;
     this->y = y;
 }

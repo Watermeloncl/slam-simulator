@@ -2,7 +2,7 @@
 #include "..\World\Objects\opoint.h"
 #include "..\config.h"
 
-RenderPacket::RenderPacket(float realX, float realY, float realTheta, OPoint** pointCloud) {
+RenderPacket::RenderPacket(double realX, double realY, double realTheta, OPoint** pointCloud) {
     this->realX = realX;
     this->realY = realY;
     this->realTheta = realTheta;

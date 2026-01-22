@@ -8,13 +8,13 @@ public:
 private:
     Map* map = nullptr;
 
-    float prevX = 0;
-    float prevY = 0;
-    float prevTheta = 0;
+    double prevX = 0;
+    double prevY = 0;
+    double prevTheta = 0;
 
-    float realX = 0;
-    float realY = 0;
-    float realTheta = 0;
+    double realX = 0;
+    double realY = 0;
+    double realTheta = 0;
 
 public:
     MotionModel();
@@ -22,15 +22,15 @@ public:
 
     void GiveMap(Map* map);
 
-    float GetPrevX();
-    float GetPrevY();
-    float GetPrevTheta();
+    double GetPrevX();
+    double GetPrevY();
+    double GetPrevTheta();
 
-    float GetRealX();
-    float GetRealY();
-    float GetRealTheta();
+    double GetRealX();
+    double GetRealY();
+    double GetRealTheta();
     
-    void SetStartPosition(float x, float y, float theta);
+    void SetStartPosition(double x, double y, double theta);
 
     void DummyUpdate();
 private:

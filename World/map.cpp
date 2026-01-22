@@ -87,7 +87,7 @@ void Map::ReadMap(int id) {
     std::string line;
     OPoint* tempPoint1, * tempPoint2;
     OLine* tempLine;
-    float tempVals[4];
+    double tempVals[4];
 
     while(std::getline(file, line)) {
         line.erase(line.find_last_not_of(" \t\n\r") + 1);

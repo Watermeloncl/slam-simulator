@@ -2,7 +2,7 @@
 
 #include "polarPoint.h"
 
-PolarPoint::PolarPoint(float range, float theta) {
+PolarPoint::PolarPoint(double range, double theta) {
     this->range = range;
     this->theta = theta;
 }

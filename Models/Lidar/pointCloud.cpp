@@ -16,12 +16,7 @@ PointCloud::~PointCloud() {
     delete[] this->cloud;
 }
 
-void PointCloud::Add(float range, float theta) {
-    if(range < SENSOR_MODEL_MEASURE_MIN || range > SENSOR_MODEL_MEASURE_MAX) {
-        // out of range
-        return;
-    }
-
+void PointCloud::Add(double range, double theta) {
     this->cloud[this->cloudSize] = new PolarPoint(range, theta);
     (this->cloudSize)++;
 }

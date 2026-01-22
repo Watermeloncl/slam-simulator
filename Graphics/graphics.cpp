@@ -137,7 +137,7 @@ void GraphicsModule::DrawRobot() {
     for(int i = 0; i < 2; i++) {
         std::pair<float, float> temp = this->XYToDipsBackground(quadrants[i], this->currentPacket->realX, this->currentPacket->realY);
         deviceContext->DrawEllipse(
-            D2D1::Ellipse(D2D1::Point2F(temp.first, temp.second), ROBOT_RADIUS, ROBOT_RADIUS),
+            D2D1::Ellipse(D2D1::Point2F(temp.first, temp.second), (float)ROBOT_RADIUS, (float)ROBOT_RADIUS),
             this->brushes[COLOR_PALETTE_BLACK],
             1.5,
             nullptr
@@ -145,8 +145,8 @@ void GraphicsModule::DrawRobot() {
 
         deviceContext->DrawLine(
             D2D1::Point2F(temp.first, temp.second),
-            D2D1::Point2F(temp.first + (ROBOT_RADIUS * std::cos(this->currentPacket->realTheta)),
-                          temp.second - (ROBOT_RADIUS * std::sin(this->currentPacket->realTheta))),
+            D2D1::Point2F((float)(temp.first + (ROBOT_RADIUS * std::cos(this->currentPacket->realTheta))),
+                          (float)(temp.second - (ROBOT_RADIUS * std::sin(this->currentPacket->realTheta)))),
             this->brushes[COLOR_PALETTE_BLACK],
             2,
             nullptr
@@ -220,27 +220,27 @@ void GraphicsModule::DrawStaticElements() {
     }
 }
 
-std::pair<float, float> GraphicsModule::XYToDipsBackground(int quadrant, float x, float y) {
+std::pair<float, float> GraphicsModule::XYToDipsBackground(int quadrant, double x, double y) {
     switch(quadrant) {
         case TOP_LEFT:
             return {
-                (CLIENT_SCREEN_WIDTH * 0.25f) + (x / MM_PER_DIP) + 1,
-                (CLIENT_SCREEN_HEIGHT * 0.25f) + (y / MM_PER_DIP * -1) + 1
+                (CLIENT_SCREEN_WIDTH * 0.25) + (x / MM_PER_DIP) + 1,
+                (CLIENT_SCREEN_HEIGHT * 0.25) + (y / MM_PER_DIP * -1) + 1
             };
         case TOP_RIGHT:
             return {
-                (CLIENT_SCREEN_WIDTH * 0.75f) + (x / MM_PER_DIP) - 1,
-                (CLIENT_SCREEN_HEIGHT * 0.25f) + (y / MM_PER_DIP * -1) + 1
+                (CLIENT_SCREEN_WIDTH * 0.75) + (x / MM_PER_DIP) - 1,
+                (CLIENT_SCREEN_HEIGHT * 0.25) + (y / MM_PER_DIP * -1) + 1
             };
         case BOTTOM_LEFT:
             return {
-                (CLIENT_SCREEN_WIDTH * 0.25f) + (x / MM_PER_DIP) + 1,
-                (CLIENT_SCREEN_HEIGHT * 0.75f) + (y / MM_PER_DIP * -1) - 1
+                (CLIENT_SCREEN_WIDTH * 0.25) + (x / MM_PER_DIP) + 1,
+                (CLIENT_SCREEN_HEIGHT * 0.75) + (y / MM_PER_DIP * -1) - 1
             };
         default:
             return {
-                (CLIENT_SCREEN_WIDTH * 0.75f) + (x / MM_PER_DIP) - 1,
-                (CLIENT_SCREEN_HEIGHT * 0.75f) + (y / MM_PER_DIP * -1) - 1
+                (CLIENT_SCREEN_WIDTH * 0.75) + (x / MM_PER_DIP) - 1,
+                (CLIENT_SCREEN_HEIGHT * 0.75) + (y / MM_PER_DIP * -1) - 1
             };
     }
 }

@@ -42,7 +42,7 @@ private:
 
     void DrawStaticElements();
 
-    std::pair<float, float> XYToDipsBackground(int quadrant, float x, float y);
+    std::pair<float, float> XYToDipsBackground(int quadrant, double x, double y);
 };
 
 #endif

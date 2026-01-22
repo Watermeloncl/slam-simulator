@@ -20,10 +20,10 @@ public:
     ~SensorModel();
 
     void GiveMap(Map* map);
-    PointCloud* GetScan(float prevX, float prevY, float prevTheta, float currX, float currY, float currTheta);
+    PointCloud* GetScan(double prevX, double prevY, double prevTheta, double currX, double currY, double currTheta);
     OPoint** GetRenderScan();
 private:
-    float GetCollisionDistance(float x, float y, float theta);
+    double GetCollisionDistance(double x, double y, double theta, double& dx, double& dy);
     void PrintRenderCloud();
 };
 

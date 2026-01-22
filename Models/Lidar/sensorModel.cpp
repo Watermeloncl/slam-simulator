@@ -8,6 +8,7 @@
 #include "sensorModel.h"
 #include "pointCloud.h"
 #include "..\..\Utilities\mathUtilities.h"
+#include "..\..\Utilities\utilities.h"
 #include "..\..\config.h"
 
 SensorModel::SensorModel() {
@@ -25,7 +26,7 @@ void SensorModel::GiveMap(Map* map) {
 // for now, sensor model isn't accurate; doesn't account for acceleration/deceleration. May come back to this
 // acceleration and deceleration difference turn into noise.
 // with default values, that's at most 2.025 mm, and an average of 1.35 mm.
-PointCloud* SensorModel::GetScan(float prevX, float prevY, float prevTheta, float currX, float currY, float currTheta) {
+PointCloud* SensorModel::GetScan(double prevX, double prevY, double prevTheta, double currX, double currY, double currTheta) {
     PointCloud* pointCloud = new PointCloud();
     this->renderScan = new OPoint*[SENSOR_MODEL_POINTS_PER_SCAN];
     for(int i = 0; i < SENSOR_MODEL_POINTS_PER_SCAN; i++) {
@@ -33,23 +34,45 @@ PointCloud* SensorModel::GetScan(float prevX, float prevY, float prevTheta, floa
     }
     this->currRenderPoints = 0;
 
-    float pi = MathUtilities::PI;
+    double pi = MathUtilities::PI;
 
-    float deltaX = (currX - prevX) / SENSOR_MODEL_POINTS_PER_SCAN;
-    float deltaY = (currY - prevY) / SENSOR_MODEL_POINTS_PER_SCAN;
-    float deltaTheta = (currTheta - prevTheta) / SENSOR_MODEL_POINTS_PER_SCAN;
-    float deltaRadian = ((2 * pi) / SENSOR_MODEL_POINTS_PER_SCAN);
+    double deltaX = (currX - prevX) / SENSOR_MODEL_POINTS_PER_SCAN;
+    double deltaY = (currY - prevY) / SENSOR_MODEL_POINTS_PER_SCAN;
+    double deltaTheta = (currTheta - prevTheta) / SENSOR_MODEL_POINTS_PER_SCAN;
+    double deltaRadian = ((2 * pi) / SENSOR_MODEL_POINTS_PER_SCAN);
 
-    float startX = prevX + (deltaX / 2.0f);
-    float startY = prevY + (deltaY / 2.0f);
-    float startTheta = prevTheta + (deltaTheta / 2.0f);
-    float startRadian = deltaRadian / 2.0f;
+    double startX = prevX + (deltaX / 2.0);
+    double startY = prevY + (deltaY / 2.0);
+    double startTheta = prevTheta + (deltaTheta / 2.0);
+    double startRadian = deltaRadian / 2.0;
 
-    float range;
+    double range, dx, dy, resolution;
 
     for(int i = 0; i < SENSOR_MODEL_POINTS_PER_SCAN; i++) {
-        range = this->GetCollisionDistance(startX, startY, startTheta + startRadian);
+        range = this->GetCollisionDistance(startX, startY, startTheta + startRadian, dx, dy);
+        if(range < SENSOR_MODEL_MEASURE_MIN || range > SENSOR_MODEL_MEASURE_MAX) {
+            // out of range
+            continue;
+        }
+
+        for(int tier = 0; tier < SENSOR_MODEL_ACCURACY_TIERS; tier++) {
+            if(range < SENSOR_MODEL_ACCURACY[tier].second) {
+                range = Utilities::AddRangeToNoise(range, tier);
+                break;
+            }
+        }
+
+        resolution = range * SENSOR_MODEL_RANGE_RESOLUTION;
+        range = std::round(range / resolution) * resolution;
+
         pointCloud->Add(range, startRadian);
+
+        // For rendering purposes
+        this->renderScan[this->currRenderPoints] = new OPoint(
+            startX + (dx * range),
+            startY + (dy * range)
+        );
+        (this->currRenderPoints)++;
 
         startX += deltaX;
         startY += deltaY;
@@ -68,23 +91,23 @@ OPoint** SensorModel::GetRenderScan() {
 }
 
 //todo ADD NOISE
-float SensorModel::GetCollisionDistance(float x, float y, float theta) {
-    float minDistance = FLT_MAX;
+double SensorModel::GetCollisionDistance(double x, double y, double theta, double& dx, double& dy) {
+    double minDistance = FLT_MAX;
     OLine** lines = this->map->GetLines();
 
-    float d; //discriminate
-    float u; // partial derivative in respect to line length? must be 0 <= u <= 1
+    double d; //discriminate
+    double u; // partial derivative in respect to line length? must be 0 <= u <= 1
              // ...idk it's the percent of the line between intersection point and each end.
              // I didn't take calc 3. ¯\_(ツ)_/¯
-    float t; // distance to intersection point
+    double t; // distance to intersection point
 
-    float ax; // point ax
-    float ay; // point ay
-    float bx; // point bx. a/b can be switched with no difference
-    float by; // point by
+    double ax; // point ax
+    double ay; // point ay
+    double bx; // point bx. a/b can be switched with no difference
+    double by; // point by
 
-    float dx = (float)cos(theta); // direction x
-    float dy = (float)sin(theta); // direction y
+    dx = cos(theta); // direction x
+    dy = sin(theta); // direction y
 
     for(int i = 0; i < this->map->GetLinesSize(); i++) {
         ax = lines[i]->point1->x;
@@ -108,17 +131,6 @@ float SensorModel::GetCollisionDistance(float x, float y, float theta) {
             // looking for closest intersection above 0 (below is behind ray)
             minDistance = t;
         }
-    }
-
-    // Based on measurement range of lidar sensor
-    // Simply for rendering
-    
-    if(minDistance <= SENSOR_MODEL_MEASURE_MAX && minDistance >= SENSOR_MODEL_MEASURE_MIN) {
-        this->renderScan[this->currRenderPoints] = new OPoint(
-            x + (dx * minDistance),
-            y + (dy * minDistance)
-        );
-        (this->currRenderPoints)++;
     }
 
     return minDistance;

@@ -11,7 +11,7 @@ public:
     PointCloud();
     ~PointCloud();
 
-    void Add(float range, float theta);
+    void Add(double range, double theta);
     void Print();
 };
 

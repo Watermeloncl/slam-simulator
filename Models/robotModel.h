@@ -22,9 +22,9 @@ public:
 
     void InitializeRobot(Map* map);
 
-    float GetRealX();
-    float GetRealY();
-    float GetRealTheta();
+    double GetRealX();
+    double GetRealY();
+    double GetRealTheta();
 
     PointCloud* GetScan();
     OPoint** GetRenderScan();
