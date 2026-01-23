@@ -10,6 +10,7 @@ public:
     double y;
 
     void Print();
+    OPoint* Copy();
 };
 
 #endif

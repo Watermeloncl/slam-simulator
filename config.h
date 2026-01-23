@@ -7,15 +7,20 @@
 #define SLAM_OPTION_EKF 0
 #define SLAM_OPTION_GMAPPING 1
 
-const int STARTING_MAP = 2;
+const int STARTING_MAP = 3;
 const int STARTING_SLAM = SLAM_OPTION_EKF;
 const bool SHOW_POSSIBLE_STARTING_LOCATIONS = false;
 
 // Sensor Model Details; 360 degrees
 const int SENSOR_MODEL_POINTS_PER_SCAN = 1455; // 1455 default (8000 / 5.5Hz)
-const double SENSOR_MODEL_TIME_PER_SCAN = 1.0 / 5.5; // default (1.0 second / 5.5 Hz)
+const double SENSOR_MODEL_TIME_PER_SCAN = 1.0 / 5.5; // default 5.5 Hz
 const int SENSOR_MODEL_MEASURE_MIN = 150;   // 150 default
 const int SENSOR_MODEL_MEASURE_MAX = 12000; // 12000 default
+
+// Period details (except sensor ^^^)
+const double SLAM_PERIOD = 1.0 / 2.0; // Times to run algorithm per second
+const double GRAPHICS_FPS = 1.0 / 60.0; // Also how often motion is updated
+const double MOTION_PERIOD = GRAPHICS_FPS; // No point having it faster than graphics
 
 // Defaults based on lidar specs {1% <= 3000, 2% 3-5, 2.5% 5+}. Be sure to cover measurement range.
 const int SENSOR_MODEL_ACCURACY_TIERS = 3;
@@ -84,5 +89,8 @@ const int TOP_LEFT = 1;
 const int TOP_RIGHT = 2;
 const int BOTTOM_LEFT = 3;
 const int BOTTOM_RIGHT = 4;
+
+// Sensor
+const int SENSOR_NUM_TRACKED_PACKETS = 4;
 
 #endif

@@ -17,6 +17,8 @@ private:
     ID2D1CommandList* commandList = nullptr;
     ID2D1Image* targetBitmap = nullptr;
 
+    D2D1_RECT_F sensorClip;
+
     std::unordered_map<int, ID2D1SolidColorBrush*> brushes;
 
     HWND hwnd = NULL;

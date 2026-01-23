@@ -10,6 +10,7 @@ public:
     ~PolarPoint();
 
     void Print();
+    PolarPoint* Copy();
 };
 
 #endif

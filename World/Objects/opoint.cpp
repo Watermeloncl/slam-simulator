@@ -15,3 +15,7 @@ OPoint::~OPoint() {
 void OPoint::Print() {
     std::cout << "(" << this->x << ", " << this->y << ")";
 }
+
+OPoint* OPoint::Copy() {
+    return new OPoint(this->x, this->y);
+}

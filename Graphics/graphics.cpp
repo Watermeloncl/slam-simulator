@@ -49,6 +49,13 @@ void GraphicsModule::InitD2D() {
         this->deviceContext->CreateSolidColorBrush(D2D1::ColorF(COLOR_PALETTE_VALUES[i]), &tempBrush);
         this->brushes[COLOR_PALETTE_VALUES[i]] = tempBrush;
     }
+
+    this->sensorClip = D2D1::RectF(
+        0,
+        CLIENT_SCREEN_HEIGHT / 2.0,
+        CLIENT_SCREEN_WIDTH / 2.0,
+        CLIENT_SCREEN_HEIGHT
+    );
 }
 
 void GraphicsModule::CleanupD2D() {
@@ -159,8 +166,9 @@ void GraphicsModule::DrawPointCloud() {
         return;
     }
 
-    OPoint* tempPoint;
+    this->deviceContext->PushAxisAlignedClip(this->sensorClip, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
 
+    OPoint* tempPoint;
     for(int i = 0; i < SENSOR_MODEL_POINTS_PER_SCAN; i++) {
         if(this->currentPacket->pointCloud[i] == nullptr) {
             break;
@@ -173,6 +181,8 @@ void GraphicsModule::DrawPointCloud() {
             this->brushes[COLOR_PALETTE_RED]
         );
     }
+
+    this->deviceContext->PopAxisAlignedClip();
 }
 
 void GraphicsModule::CreateWindowModule(HINSTANCE hInstance, int nCmdShow) {

@@ -1,6 +1,9 @@
 #ifndef MODELS_ROBOT_MODEL_H_
 #define MODELS_ROBOT_MODEL_H_
 
+#include <windows.h>
+#include <thread>
+
 #include "..\World\map.h"
 #include "Lidar\sensorModel.h"
 #include "Lidar\pointCloud.h"
@@ -10,8 +13,8 @@
 class RobotModel {
 public:
 private:
-    SensorModel* sensorModel = nullptr;
     MotionModel* motionModel = nullptr;
+    SensorModel* sensorModel = nullptr;
 
     // map solely for simulation purposes
     Map* map = nullptr;
@@ -26,8 +29,9 @@ public:
     double GetRealY();
     double GetRealTheta();
 
-    PointCloud* GetScan();
-    OPoint** GetRenderScan();
+    void KickOffScan(double timestamp);
+    PointCloud* CopyLatestScan();
+    OPoint** CopyLatestRenderScan();
 
     void DummyUpdate();
 private:

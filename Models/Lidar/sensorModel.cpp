@@ -2,11 +2,14 @@
 #include <cmath>
 #include <cfloat>
 #include <iostream>
+#include <thread>
+#include <mutex>
 
 #include "..\..\World\map.h"
 #include "..\..\World\Objects\opoint.h"
 #include "sensorModel.h"
 #include "pointCloud.h"
+#include "sensorPacket.h"
 #include "..\..\Utilities\mathUtilities.h"
 #include "..\..\Utilities\utilities.h"
 #include "..\..\config.h"
@@ -15,35 +18,70 @@ SensorModel::SensorModel() {
 
 }
 
+//TODO stop thread before destroying
 SensorModel::~SensorModel() {
     //do not delete map here.
+
+    //TODO destroy thread
+}
+
+void SensorModel::InitSensor() {
+    this->packetHistory = new SensorPacket*[SENSOR_NUM_TRACKED_PACKETS];
+    for(int i = 0; i < SENSOR_NUM_TRACKED_PACKETS; i++) {
+        this->packetHistory[i] = nullptr;
+    }
+    
+    this->packetHistory[0] = new SensorPacket(nullptr, nullptr, 0, 0, 0, 0);
+
+    this->sensorSemaphore = CreateSemaphore(NULL, 0, 1, NULL);
+    this->sensorThread = std::thread(MainScanLoop, this);
 }
 
 void SensorModel::GiveMap(Map* map) {
     this->map = map;
 }
 
+void SensorModel::GiveMotionModel(MotionModel* motionModel) {
+    this->motionModel = motionModel;
+}
+
+void SensorModel::MainScanLoop() {
+    //TODO add flag to stop for destruction
+    for(;;) {
+        WaitForSingleObject(this->sensorSemaphore, INFINITE);
+        if(this->destroyFlag) {
+            break;
+        }
+
+        SensorPacket* newPacket = this->GetScan(this->motionModel->GetRealX(), this->motionModel->GetRealY(), this->motionModel->GetRealTheta());
+
+        this->AddPacket(newPacket);
+    }
+}
+
 // for now, sensor model isn't accurate; doesn't account for acceleration/deceleration. May come back to this
 // acceleration and deceleration difference turn into noise.
 // with default values, that's at most 2.025 mm, and an average of 1.35 mm.
-PointCloud* SensorModel::GetScan(double prevX, double prevY, double prevTheta, double currX, double currY, double currTheta) {
+SensorPacket* SensorModel::GetScan(double currX, double currY, double currTheta) {
     PointCloud* pointCloud = new PointCloud();
-    this->renderScan = new OPoint*[SENSOR_MODEL_POINTS_PER_SCAN];
+    OPoint** renderCloud = new OPoint*[SENSOR_MODEL_POINTS_PER_SCAN];
     for(int i = 0; i < SENSOR_MODEL_POINTS_PER_SCAN; i++) {
-        this->renderScan[i] = nullptr;
+        renderCloud[i] = nullptr;
     }
-    this->currRenderPoints = 0;
+    int currRenderPoints = 0;
 
     double pi = MathUtilities::PI;
 
-    double deltaX = (currX - prevX) / SENSOR_MODEL_POINTS_PER_SCAN;
-    double deltaY = (currY - prevY) / SENSOR_MODEL_POINTS_PER_SCAN;
-    double deltaTheta = (currTheta - prevTheta) / SENSOR_MODEL_POINTS_PER_SCAN;
+    SensorPacket* lastPacket = this->GetLatestPacket();
+
+    double deltaX = (currX - lastPacket->x) / SENSOR_MODEL_POINTS_PER_SCAN;
+    double deltaY = (currY - lastPacket->y) / SENSOR_MODEL_POINTS_PER_SCAN;
+    double deltaTheta = (currTheta - lastPacket->theta) / SENSOR_MODEL_POINTS_PER_SCAN;
     double deltaRadian = ((2 * pi) / SENSOR_MODEL_POINTS_PER_SCAN);
 
-    double startX = prevX + (deltaX / 2.0);
-    double startY = prevY + (deltaY / 2.0);
-    double startTheta = prevTheta + (deltaTheta / 2.0);
+    double startX = lastPacket->x + (deltaX / 2.0);
+    double startY = lastPacket->y + (deltaY / 2.0);
+    double startTheta = lastPacket->theta + (deltaTheta / 2.0);
     double startRadian = deltaRadian / 2.0;
 
     double range, dx, dy, resolution;
@@ -68,29 +106,54 @@ PointCloud* SensorModel::GetScan(double prevX, double prevY, double prevTheta, d
         pointCloud->Add(range, startRadian);
 
         // For rendering purposes
-        this->renderScan[this->currRenderPoints] = new OPoint(
+        renderCloud[currRenderPoints] = new OPoint(
             startX + (dx * range),
             startY + (dy * range)
         );
-        (this->currRenderPoints)++;
+        (currRenderPoints)++;
 
         startX += deltaX;
         startY += deltaY;
         startTheta += deltaTheta;
         startRadian += deltaRadian;
     }
-    
-    // pointCloud->Print();
-    // this->PrintRenderCloud();
 
-    return pointCloud;
+    SensorPacket* newPacket = new SensorPacket(pointCloud, renderCloud, currX, currY, currTheta, this->kickTimeStamp);
+
+    return newPacket;
 }
 
-OPoint** SensorModel::GetRenderScan() {
-    return this->renderScan;
+double SensorModel::GetKickTimeStamp() {
+    std::lock_guard<std::mutex> lock(this->guardTimestamp);
+    return this->kickTimeStamp;
 }
 
-//todo ADD NOISE
+void SensorModel::SetKickTimeStamp(double timestamp) {
+    std::lock_guard<std::mutex> lock(this->guardTimestamp);
+    this->kickTimeStamp = timestamp;
+}
+
+HANDLE SensorModel::GetSensorSemaphore() {
+    return this->sensorSemaphore;
+}
+
+SensorPacket* SensorModel::GetLatestPacket() {
+    std::lock_guard<std::mutex> lock(this->guardPacketHistory);
+    return this->packetHistory[0];
+}
+
+void SensorModel::AddPacket(SensorPacket* newPacket) {
+    std::lock_guard<std::mutex> lock(this->guardPacketHistory);
+
+    delete this->packetHistory[SENSOR_NUM_TRACKED_PACKETS - 1];
+
+    for(int i = SENSOR_NUM_TRACKED_PACKETS - 1; i > 0; i--) {
+        this->packetHistory[i] = this->packetHistory[i - 1];
+    }
+
+    this->packetHistory[0] = newPacket;
+}
+
 double SensorModel::GetCollisionDistance(double x, double y, double theta, double& dx, double& dy) {
     double minDistance = FLT_MAX;
     OLine** lines = this->map->GetLines();
@@ -136,10 +199,13 @@ double SensorModel::GetCollisionDistance(double x, double y, double theta, doubl
     return minDistance;
 }
 
-void SensorModel::PrintRenderCloud() {
-    std::cout << "Render cloud: " << this->currRenderPoints << std::endl;
-    for(int i = 0; i < this->currRenderPoints; i++) {
-        this->renderScan[i]->Print();
+void SensorModel::PrintRenderCloud(SensorPacket* packet) {
+    std::cout << "Render cloud: " << std::endl;
+    for(int i = 0; i < SENSOR_MODEL_POINTS_PER_SCAN; i++) {
+        if(packet->renderCloud[i] == nullptr) {
+            break;
+        }
+        packet->renderCloud[i]->Print();
         std::cout << std::endl;
     }
 }

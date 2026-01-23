@@ -15,6 +15,7 @@ RenderPacket::~RenderPacket() {
         for(int i = 0; i < SENSOR_MODEL_POINTS_PER_SCAN; i++) {
             delete this->pointCloud[i];
         }
+        
         delete[] this->pointCloud;
     }
 }

@@ -13,6 +13,7 @@ public:
 
     void Add(double range, double theta);
     void Print();
+    PointCloud* Copy();
 };
 
 #endif

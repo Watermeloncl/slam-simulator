@@ -2,7 +2,6 @@
 #define SIMULATOR_H_
 
 #include <windows.h>
-#include <thread>
 
 #include "..\Graphics\graphics.h"
 #include "..\Graphics\renderPacket.h"
@@ -17,8 +16,7 @@ private:
     RobotModel* robotModel = nullptr;
     AIModule* aiModule = nullptr;
     SLAMModule* slamModule = nullptr;
-
-    std::thread sensorThread;
+    
 public:
     Simulator(HINSTANCE hInstance, int nCmdShow);
     ~Simulator();

@@ -45,13 +45,19 @@ void Simulator::RunMainLoop() {
     TimeStamp now = SchedClock::now();
 
     Duration elapsed;
-    double accumulator = 0.0;
-    //TODO change back to 60 fps, just only scan every x movement
-    // thread scanning
-    const double dt = SENSOR_MODEL_TIME_PER_SCAN;
-    //const double dt = 1.0 / 60.0;
+    double scanAccumulator = 0.0;
+    const double scanPeriod = SENSOR_MODEL_TIME_PER_SCAN; //tmp
 
+    double slamAccumulator = 0.0;
+    const double slamPeriod = SLAM_PERIOD;
 
+    double mainAccumulator = 0.0;
+    const double mainPeriod = GRAPHICS_FPS;
+
+    double motionAccumulator = 0.0;
+    double motionPeriod = MOTION_PERIOD;
+
+    double totalAccumulator = 0.0;
 
     MSG msg = {};
 
@@ -66,7 +72,6 @@ void Simulator::RunMainLoop() {
             
     this->graphicsModule->UpdateRenderInfo(renderPacket);
 
-    int frame = 0;
     bool running = true;
 
     while(running) {
@@ -87,29 +92,48 @@ void Simulator::RunMainLoop() {
         now = SchedClock::now();
         elapsed = now - lastTime;
         lastTime = now;
-        accumulator += elapsed.count();
+        motionAccumulator += elapsed.count();
+        scanAccumulator += elapsed.count();
+        slamAccumulator += elapsed.count();
+        mainAccumulator += elapsed.count();
+        totalAccumulator += elapsed.count();
 
-        while(accumulator >= dt) {
-            frame++;
-
-            //command = GetNextCommand();
-            //refinedCommand = CommandRobot();
-
+        while(motionAccumulator >= motionPeriod) {
             this->robotModel->DummyUpdate(); //tmp
 
-            auto start = std::chrono::high_resolution_clock::now();
-            PointCloud* pointCloud = this->robotModel->GetScan();
-            OPoint** renderPointCloud = this->robotModel->GetRenderScan();
-            auto end = std::chrono::high_resolution_clock::now();
-            std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;
+            //update AI
+            //Get Command()
+            //refinedCommand = CommandRobot();
+            //UpdateRobotPosition()
 
-            //UpdateSlam(pointCloud);
-            delete pointCloud;
+            motionAccumulator -= motionPeriod;
+        }
 
+        while(scanAccumulator >= scanPeriod) {
+            this->robotModel->KickOffScan(totalAccumulator); //what if it can't?
+            scanAccumulator -= scanPeriod;
+        }
+
+        while(slamAccumulator >= slamPeriod) {
+            //run slam algorithm update
+            //uses refined command?
+            PointCloud* pointCloud = this->robotModel->CopyLatestScan();
+
+            //updateSLAM(refinedCommand, pointCloud) // must check if pointCloud isn't nullptr
+            
+            delete pointCloud; //delete copy made
+            slamAccumulator -= slamPeriod;
+        }
+
+        while(mainAccumulator >= mainPeriod) {
+            //get updated graphics
             //map = GetMap();
             //pose = GetPose();
-            //reality = GetTruePose();
             //Trajectory = UpdateTrajectory();
+
+            // save cpu cycles by not making copy
+            OPoint** renderPointCloud = this->robotModel->CopyLatestRenderScan();
+            // std::cout << "checkpoint 1" << std::endl;
 
             RenderPacket* renderPacket = new RenderPacket(
                 this->robotModel->GetRealX(),
@@ -119,8 +143,8 @@ void Simulator::RunMainLoop() {
             );
             
             this->graphicsModule->UpdateRenderInfo(renderPacket);
-            
-            accumulator -= dt;
+
+            mainAccumulator -= mainPeriod;
         }
 
         this->graphicsModule->RenderFrame();

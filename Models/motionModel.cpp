@@ -1,4 +1,6 @@
 #include <cmath>
+#include <thread>
+#include <mutex>
 
 #include "motionModel.h"
 #include "..\World\map.h"
@@ -15,46 +17,43 @@ void MotionModel::GiveMap(Map* map) {
     this->map = map;
 }
 
-double MotionModel::GetPrevX() {
-    return this->prevX;
-}
-
-double MotionModel::GetPrevY() {
-    return this->prevY;
-}
-
-double MotionModel::GetPrevTheta() {
-    return this->prevTheta;
-}
-
 double MotionModel::GetRealX() {
     return this->realX;
 }
 
 double MotionModel::GetRealY() {
+    std::lock_guard<std::mutex> lock(this->guardY);
     return this->realY;
 }
 
 double MotionModel::GetRealTheta() {
+    std::lock_guard<std::mutex> lock(this->guardTheta);
     return this->realTheta;
+}
+
+void MotionModel::SetRealX(double x) {
+    std::lock_guard<std::mutex> lock(this->guardX);
+    this->realX += x;
+}
+
+void MotionModel::SetRealY(double y) {
+    std::lock_guard<std::mutex> lock(this->guardY);
+    this->realY += y;
+}
+
+void MotionModel::SetRealTheta(double theta) {
+    std::lock_guard<std::mutex> lock(this->guardTheta);
+    this->realTheta += theta;
 }
 
 void MotionModel::SetStartPosition(double x, double y, double theta) {
     this->realX = x;
-    this->prevX = x;
     this->realY = y;
-    this->prevY = y;
     this->realTheta = theta;
-    this->prevTheta = theta;
 }
 
 void MotionModel::DummyUpdate() {
-    this->prevTheta = this->realTheta;
-    this->realTheta += 0.1745329F;
-
-    this->prevX = this->realX;
-    this->prevY = this->realY;
-
-    this->realX += (54.0F * (double)cos(this->realTheta));
-    this->realY += (54.0F * (double)sin(this->realTheta));
+    this->SetRealTheta(0.1745329);
+    this->SetRealX(54.0 * cos(this->GetRealTheta()));
+    this->SetRealY(54.0 * sin(this->GetRealTheta()));
 }

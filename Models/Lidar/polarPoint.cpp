@@ -16,3 +16,7 @@ PolarPoint::~PolarPoint() {
 void PolarPoint::Print() {
     std::cout << "(" << this->range << ", " << this->theta << ")";
 }
+
+PolarPoint* PolarPoint::Copy() {
+    return new PolarPoint(this->range, this->theta);
+}
