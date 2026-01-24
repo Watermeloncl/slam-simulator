@@ -6,8 +6,8 @@
 class Utilities {
 public:
     static int GetRandomInt(int min, int max);
-    static double AddRangeToNoise(double range, int tier);
-
+    static double GetRandomNoise(double mean, double sigma);
+    static double GetFixedNoise(double value);
 private:
     Utilities() = default;
 };

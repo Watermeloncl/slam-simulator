@@ -10,6 +10,7 @@ SensorPacket::SensorPacket(PointCloud* cloud, OPoint** renderCloud, double x, do
     this->renderCloud = renderCloud;
     this->x = x;
     this->y = y;
+    this->theta = theta;
     this->timestamp = timestamp;
 }
 

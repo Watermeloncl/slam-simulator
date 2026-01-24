@@ -34,9 +34,13 @@ const std::pair<double, double> SENSOR_MODEL_ACCURACY[SENSOR_MODEL_ACCURACY_TIER
 const double SENSOR_MODEL_RANGE_RESOLUTION = 0.01;
 
 // Motion Model Details
-const double MOTION_MODEL_ACCELERATION = 500.0; // mm/s^2
-const double MOTION_MODEL_MAX_VELOCITY = 300.0; // mm/s
-
+const double MOTION_MODEL_ACCELERATION = 500.0 * MOTION_PERIOD; // mm/s^2
+const double MOTION_MODEL_MAX_VELOCITY = 300.0 * MOTION_PERIOD; // mm/s
+const double MOTION_MODEL_ROTATION = 1.0 * MOTION_PERIOD; // 1 rad/s, or 57.2 degrees per second
+const double MOTION_MODEL_FORWARD_DEVIATION = 0.05; //5%: hardwood floor
+const double MOTION_MODEL_FORWARD_ROTATION_DEVIATION = 0.02 / 3; // +- 0.02 within 3 sigma (fixed)
+const double MOTION_MODEL_ROTATION_DEVIATION = 0.02; //2%: hardwood floor
+const double MOTION_MODEL_ROTATION_FIXED = MOTION_MODEL_ROTATION_DEVIATION * MOTION_MODEL_ROTATION;
 
 ///////////////////////////////////////////////
 //// Do not touch any parameters here down ////
@@ -92,5 +96,13 @@ const int BOTTOM_RIGHT = 4;
 
 // Sensor
 const int SENSOR_NUM_TRACKED_PACKETS = 4;
+
+// AI/Motion
+enum class RobotCommand { //do we add none?
+    FORWARD,
+    STOP,
+    LEFT,
+    RIGHT
+};
 
 #endif

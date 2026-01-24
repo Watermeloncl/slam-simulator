@@ -4,19 +4,18 @@
 #include <mutex>
 
 #include "..\World\map.h"
+#include "..\config.h"
 
 class MotionModel {
 public:
 private:
     Map* map = nullptr;
 
-    std::mutex guardX;
-    std::mutex guardY;
-    std::mutex guardTheta;
-
     double realX = 0;
     double realY = 0;
     double realTheta = 0;
+
+    double velocity = 0.0;
 
 public:
     MotionModel();
@@ -28,13 +27,13 @@ public:
     double GetRealY();
     double GetRealTheta();
 
-    void SetRealX(double x);
-    void SetRealY(double y);
-    void SetRealTheta(double theta);
+    void ChangeRealX(double x);
+    void ChangeRealY(double y);
+    void ChangeRealTheta(double theta);
     
     void SetStartPosition(double x, double y, double theta);
 
-    void DummyUpdate();
+    void UpdateRobotPosition(RobotCommand command);
 private:
 
 };

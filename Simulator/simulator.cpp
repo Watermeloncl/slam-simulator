@@ -98,13 +98,15 @@ void Simulator::RunMainLoop() {
         mainAccumulator += elapsed.count();
         totalAccumulator += elapsed.count();
 
-        while(motionAccumulator >= motionPeriod) {
-            this->robotModel->DummyUpdate(); //tmp
 
+        while(motionAccumulator >= motionPeriod) {
             //update AI
-            //Get Command()
-            //refinedCommand = CommandRobot();
-            //UpdateRobotPosition()
+            
+            RobotCommand initialCommand = this->aiModule->GetCommand();
+            /*RobotCommand finalCommand = */this->robotModel->CommandRobot(initialCommand);
+
+            // std::cout << "pos: " << this->robotModel->GetRealX() << " " << this->robotModel->GetRealY() << " " << this->robotModel->GetRealTheta() << std::endl;
+
 
             motionAccumulator -= motionPeriod;
         }
@@ -120,7 +122,7 @@ void Simulator::RunMainLoop() {
             PointCloud* pointCloud = this->robotModel->CopyLatestScan();
 
             //updateSLAM(refinedCommand, pointCloud) // must check if pointCloud isn't nullptr
-            
+
             delete pointCloud; //delete copy made
             slamAccumulator -= slamPeriod;
         }

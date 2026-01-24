@@ -91,6 +91,24 @@ OPoint** RobotModel::CopyLatestRenderScan() {
     return newCloud;
 }
 
-void RobotModel::DummyUpdate() {
-    this->motionModel->DummyUpdate();
+RobotCommand RobotModel::CommandRobot(RobotCommand initialCommand) {
+    //TODO
+    
+    switch(initialCommand) {
+        case RobotCommand::RIGHT:
+        case RobotCommand::LEFT:
+            //can't hit wall: good
+            break;
+            
+        case RobotCommand::FORWARD:
+            //check hit wall
+            break;
+
+        case RobotCommand::STOP:
+            //check hit wall
+            break;
+    }
+
+    this->motionModel->UpdateRobotPosition(initialCommand);
+    return initialCommand; //refined command
 }

@@ -31,7 +31,7 @@ void SensorModel::InitSensor() {
         this->packetHistory[i] = nullptr;
     }
     
-    this->packetHistory[0] = new SensorPacket(nullptr, nullptr, 0, 0, 0, 0);
+    this->packetHistory[0] = new SensorPacket(nullptr, nullptr, this->motionModel->GetRealX(), this->motionModel->GetRealY(), this->motionModel->GetRealTheta(), 0);
 
     this->sensorSemaphore = CreateSemaphore(NULL, 0, 1, NULL);
     this->sensorThread = std::thread(MainScanLoop, this);
@@ -77,12 +77,12 @@ SensorPacket* SensorModel::GetScan(double currX, double currY, double currTheta)
     double deltaX = (currX - lastPacket->x) / SENSOR_MODEL_POINTS_PER_SCAN;
     double deltaY = (currY - lastPacket->y) / SENSOR_MODEL_POINTS_PER_SCAN;
     double deltaTheta = (currTheta - lastPacket->theta) / SENSOR_MODEL_POINTS_PER_SCAN;
-    double deltaRadian = ((2 * pi) / SENSOR_MODEL_POINTS_PER_SCAN);
+    double deltaRadian = ((pi*2) / SENSOR_MODEL_POINTS_PER_SCAN);
 
     double startX = lastPacket->x + (deltaX / 2.0);
     double startY = lastPacket->y + (deltaY / 2.0);
     double startTheta = lastPacket->theta + (deltaTheta / 2.0);
-    double startRadian = deltaRadian / 2.0;
+    double startRadian = (pi*2) - (deltaRadian / 2.0);
 
     double range, dx, dy, resolution;
 
@@ -95,7 +95,7 @@ SensorPacket* SensorModel::GetScan(double currX, double currY, double currTheta)
 
         for(int tier = 0; tier < SENSOR_MODEL_ACCURACY_TIERS; tier++) {
             if(range < SENSOR_MODEL_ACCURACY[tier].second) {
-                range = Utilities::AddRangeToNoise(range, tier);
+                range += Utilities::GetRandomNoise(range, SENSOR_MODEL_ACCURACY[tier].first);
                 break;
             }
         }
@@ -115,7 +115,7 @@ SensorPacket* SensorModel::GetScan(double currX, double currY, double currTheta)
         startX += deltaX;
         startY += deltaY;
         startTheta += deltaTheta;
-        startRadian += deltaRadian;
+        startRadian -= deltaRadian;
     }
 
     SensorPacket* newPacket = new SensorPacket(pointCloud, renderCloud, currX, currY, currTheta, this->kickTimeStamp);

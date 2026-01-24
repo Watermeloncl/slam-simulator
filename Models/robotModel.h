@@ -9,6 +9,7 @@
 #include "Lidar\pointCloud.h"
 #include "..\World\Objects\opoint.h"
 #include "motionModel.h"
+#include "..\config.h"
 
 class RobotModel {
 public:
@@ -33,7 +34,8 @@ public:
     PointCloud* CopyLatestScan();
     OPoint** CopyLatestRenderScan();
 
-    void DummyUpdate();
+    RobotCommand CommandRobot(RobotCommand initialCommand);
+
 private:
 
 };

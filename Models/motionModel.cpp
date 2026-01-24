@@ -3,7 +3,9 @@
 #include <mutex>
 
 #include "motionModel.h"
+#include "..\Utilities\utilities.h"
 #include "..\World\map.h"
+#include "..\config.h"
 
 MotionModel::MotionModel() {
 
@@ -22,27 +24,22 @@ double MotionModel::GetRealX() {
 }
 
 double MotionModel::GetRealY() {
-    std::lock_guard<std::mutex> lock(this->guardY);
     return this->realY;
 }
 
 double MotionModel::GetRealTheta() {
-    std::lock_guard<std::mutex> lock(this->guardTheta);
     return this->realTheta;
 }
 
-void MotionModel::SetRealX(double x) {
-    std::lock_guard<std::mutex> lock(this->guardX);
+void MotionModel::ChangeRealX(double x) {
     this->realX += x;
 }
 
-void MotionModel::SetRealY(double y) {
-    std::lock_guard<std::mutex> lock(this->guardY);
+void MotionModel::ChangeRealY(double y) {
     this->realY += y;
 }
 
-void MotionModel::SetRealTheta(double theta) {
-    std::lock_guard<std::mutex> lock(this->guardTheta);
+void MotionModel::ChangeRealTheta(double theta) {
     this->realTheta += theta;
 }
 
@@ -52,8 +49,67 @@ void MotionModel::SetStartPosition(double x, double y, double theta) {
     this->realTheta = theta;
 }
 
-void MotionModel::DummyUpdate() {
-    this->SetRealTheta(0.1745329);
-    this->SetRealX(54.0 * cos(this->GetRealTheta()));
-    this->SetRealY(54.0 * sin(this->GetRealTheta()));
+void MotionModel::UpdateRobotPosition(RobotCommand command) {
+    //TODO
+    //walls were watched out for in commandrobot, but you still
+    //  need to go up to it
+
+    //current code ignores walls :)
+
+    double dist, velocityFinal, timeLeft;
+
+    switch(command) {
+        case RobotCommand::FORWARD:
+            this->ChangeRealTheta(Utilities::GetFixedNoise(MOTION_MODEL_FORWARD_ROTATION_DEVIATION));
+            
+            if((velocity + MOTION_MODEL_ACCELERATION) < MOTION_MODEL_MAX_VELOCITY) {
+                velocityFinal = velocity + MOTION_MODEL_ACCELERATION;
+                dist = ((velocityFinal*velocityFinal) - (velocity*velocity)) / (2*MOTION_MODEL_ACCELERATION);
+                velocity += MOTION_MODEL_ACCELERATION;
+                
+            } else {
+                dist = ((MOTION_MODEL_MAX_VELOCITY*MOTION_MODEL_MAX_VELOCITY) - (velocity*velocity)) / (2*MOTION_MODEL_ACCELERATION);
+                timeLeft = MOTION_PERIOD - ((MOTION_MODEL_MAX_VELOCITY - velocity) / MOTION_MODEL_ACCELERATION);
+
+                dist += (timeLeft * MOTION_MODEL_MAX_VELOCITY);
+                velocity = MOTION_MODEL_MAX_VELOCITY;
+            }
+
+            dist += Utilities::GetRandomNoise(dist, MOTION_MODEL_FORWARD_DEVIATION);
+
+            this->ChangeRealX(dist * cos(this->GetRealTheta()));
+            this->ChangeRealY(dist * sin(this->GetRealTheta()));
+
+            break;
+
+        case RobotCommand::STOP:
+
+            this->ChangeRealTheta(Utilities::GetFixedNoise(MOTION_MODEL_FORWARD_ROTATION_DEVIATION));
+
+            if((velocity - MOTION_MODEL_ACCELERATION) > 0) {
+                velocityFinal = velocity - MOTION_MODEL_ACCELERATION;
+
+                dist = ((velocityFinal*velocityFinal) - (velocity*velocity)) / (2*-MOTION_MODEL_ACCELERATION);
+                velocity = velocityFinal;
+            } else {
+                dist = (0 - (velocity*velocity)) / (2*-MOTION_MODEL_ACCELERATION);
+
+                velocity = 0;
+            }
+
+            dist += Utilities::GetRandomNoise(dist, MOTION_MODEL_FORWARD_DEVIATION);
+            this->ChangeRealX(dist * cos(this->GetRealTheta()));
+            this->ChangeRealY(dist * sin(this->GetRealTheta()));
+
+            break;
+
+        case RobotCommand::RIGHT:
+            this->ChangeRealTheta(-(MOTION_MODEL_ROTATION + Utilities::GetFixedNoise(MOTION_MODEL_ROTATION_FIXED)));
+            break;
+
+        case RobotCommand::LEFT:
+            this->ChangeRealTheta(MOTION_MODEL_ROTATION + Utilities::GetFixedNoise(MOTION_MODEL_ROTATION_FIXED));
+            break;
+    }
+
 }
