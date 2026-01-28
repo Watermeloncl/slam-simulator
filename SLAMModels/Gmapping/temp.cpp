@@ -1,4 +1,4 @@
-#include <windows.h>
+/*#include <windows.h>
 #include <thread>
 #include <utility>
 #include <iostream>
@@ -189,7 +189,7 @@ void Gmapping::RefineEstimates() {
         
         // }
 
-        // std::cout << "===================== start update =====================" << std::endl;
+        std::cout << "===================== start update =====================" << std::endl;
         this->UpdateMaps();
 
         this->CreateRenderCopy(0);
@@ -226,10 +226,10 @@ void Gmapping::UpdateMaps() {
         if(cloud[cloudPoint]->theta == startRadian) {
             std::pair<double, double> ends = MathUtilities::PolarToCartesian(cloud[cloudPoint]->range, cloud[cloudPoint]->theta + poseStartTheta, poseStartX, poseStartY);
 
-            int startX = (int)std::floor(poseStartX * inverseCellSize);
-            int startY = (int)std::floor(poseStartY * inverseCellSize);
-            int endX = (int)std::floor(ends.first * inverseCellSize);
-            int endY = (int)std::floor(ends.second * inverseCellSize);
+            int startX = (int)(std::floor(poseStartX) * inverseCellSize);
+            int startY = (int)(std::floor(poseStartY) * inverseCellSize);
+            int endX = (int)(std::floor(ends.first) * inverseCellSize);
+            int endY = (int)(std::floor(ends.second) * inverseCellSize);
 
             this->AddAffectedCells(startX, startY, endX, endY, misses, hits);
 
@@ -297,6 +297,7 @@ void Gmapping::AddAffectedCells(int startX, int startY, int endX, int endY, std:
 }
 
 void Gmapping::CreateRenderCopy(int particleIndex) {
+    // std::cout << "adding to render!" << std::endl;
     std::unordered_map<std::pair<int, int>, Sector*, pair_hash>* model = 
             this->particles[particleIndex]->map->GetCells();
 
@@ -306,8 +307,8 @@ void Gmapping::CreateRenderCopy(int particleIndex) {
     int sectorX, sectorY;
     double mapX, mapY, worldX, worldY;
     std::pair<float, float> screenCords;
-    double cosTheta = std::cos(this->startTheta);
-    double sinTheta = std::sin(this->startTheta);
+    // double cosTheta = std::cos(this->startTheta);
+    // double sinTheta = std::sin(this->startTheta);
 
     for(std::pair<std::pair<int, int>, Sector*> sectorInfo : *model) {
         sectorX = sectorInfo.first.first * GMAPPING_SECTOR_SIZE;
@@ -318,11 +319,24 @@ void Gmapping::CreateRenderCopy(int particleIndex) {
                 continue;
             }
 
-            mapX = (sectorX + (i % GMAPPING_SECTOR_SIZE)) * GMAPPING_GRID_CELL_SIZE;
-            mapY = (sectorY + (i / GMAPPING_SECTOR_SIZE)) * GMAPPING_GRID_CELL_SIZE;
-            worldX = (mapX*cosTheta) - (mapY*sinTheta) + this->startX;
-            worldY = (mapX*sinTheta) + (mapY*cosTheta) + this->startY;
+            if(sectorInfo.first.first > 100) {
+                std::cout << "add to render: " << sectorInfo.first.first << " " << sectorInfo.first.second << " " << i << std::endl;
+            }
             
+            //tmp rotation
+            // mapX = (sectorX + (i % GMAPPING_SECTOR_SIZE)) * GMAPPING_GRID_CELL_SIZE;
+            // mapY = (sectorY + (i / GMAPPING_SECTOR_SIZE)) * GMAPPING_GRID_CELL_SIZE;
+
+            // if(mapX > 5000) {
+            //     std::cout << "add to render: " << mapX << " " << mapY << std::endl;
+            // }
+
+            // worldX = (mapX*cosTheta) - (mapY*sinTheta) + this->startX;
+            // worldY = (mapX*sinTheta) + (mapY*cosTheta) + this->startY;
+
+            worldX = ((sectorX + (i % GMAPPING_SECTOR_SIZE)) * GMAPPING_GRID_CELL_SIZE) + this->startX;
+            worldY = ((sectorY + (i / GMAPPING_SECTOR_SIZE)) * GMAPPING_GRID_CELL_SIZE) + this->startY;
+
             screenCords = this->XYToDips(worldX, worldY);
 
             newRenderMap->push_back(screenCords.first);
@@ -341,4 +355,4 @@ std::pair<float, float> Gmapping::XYToDips(double x, double y) {
         (CLIENT_SCREEN_WIDTH * 0.25) + (x / MM_PER_DIP) + 1,
         (CLIENT_SCREEN_HEIGHT * 0.25) + (y / MM_PER_DIP * -1) + 1
     };
-}
+}*/

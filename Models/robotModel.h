@@ -31,7 +31,7 @@ public:
     double GetRealTheta();
 
     void KickOffScan(double timestamp);
-    PointCloud* CopyLatestScan();
+    PointCloud* CopyLatestScan(double& pointCloudTimestamp);
     OPoint** CopyLatestRenderScan();
 
     RobotCommand CommandRobot(RobotCommand initialCommand);

@@ -12,5 +12,5 @@ AIModule::~AIModule() {
 RobotCommand AIModule::GetCommand(/*pose, map*/) {
     //TODO
 
-    return RobotCommand::RIGHT;
+    return RobotCommand::LEFT;
 }

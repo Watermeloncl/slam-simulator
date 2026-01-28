@@ -5,6 +5,9 @@
 #include <d2d1_1.h>
 #include <unordered_map>
 #include <utility>
+#include <vector>
+#include <mutex>
+#include <memory>
 
 #include "renderPacket.h"
 #include "..\World\map.h"
@@ -18,11 +21,19 @@ private:
     ID2D1Image* targetBitmap = nullptr;
 
     D2D1_RECT_F sensorClip;
+    D2D1_RECT_F slamClip;
 
     std::unordered_map<int, ID2D1SolidColorBrush*> brushes;
 
+    //wall stuff
+    D2D1_RECT_F* wallColorSources = nullptr;
+    ID2D1Bitmap* whitePixelBitmap = nullptr;
+
     HWND hwnd = NULL;
     RenderPacket* currentPacket = nullptr;
+
+    std::vector<float>** renderMapAddress = nullptr;
+    std::shared_ptr<std::mutex> guardRenderMap;
 
 public:
     GraphicsModule(HINSTANCE hInstance, int nCmdShow);
@@ -35,6 +46,10 @@ public:
 
     void DrawRobot();
     void DrawPointCloud();
+    void DrawMap();
+
+    void GiveRenderMapAddress(std::vector<float>** address);
+    void GiveRenderMapGuard(std::shared_ptr<std::mutex> guard);
 
 private:
     void InitD2D();

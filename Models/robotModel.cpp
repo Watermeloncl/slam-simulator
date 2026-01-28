@@ -61,8 +61,11 @@ void RobotModel::KickOffScan(double timestamp) {
     ReleaseSemaphore(this->sensorModel->GetSensorSemaphore(), 1, NULL);
 }
 
-PointCloud* RobotModel::CopyLatestScan() {
-    PointCloud* cloud = this->sensorModel->GetLatestPacket()->cloud;
+PointCloud* RobotModel::CopyLatestScan(double& pointCloudTimestamp) {
+    SensorPacket* lastPacket = this->sensorModel->GetLatestPacket();
+    PointCloud* cloud = lastPacket->cloud;
+    pointCloudTimestamp = lastPacket->timestamp;
+    
     if(cloud == nullptr) {
         return nullptr;
     } else {

@@ -46,10 +46,7 @@ void Simulator::RunMainLoop() {
 
     Duration elapsed;
     double scanAccumulator = 0.0;
-    const double scanPeriod = SENSOR_MODEL_TIME_PER_SCAN; //tmp
-
-    double slamAccumulator = 0.0;
-    const double slamPeriod = SLAM_PERIOD;
+    const double scanPeriod = SENSOR_MODEL_TIME_PER_SCAN;
 
     double mainAccumulator = 0.0;
     const double mainPeriod = GRAPHICS_FPS;
@@ -58,16 +55,25 @@ void Simulator::RunMainLoop() {
     double motionPeriod = MOTION_PERIOD;
 
     double totalAccumulator = 0.0;
+    double poseX, poseY, poseTheta;
 
     MSG msg = {};
 
     this->robotModel->InitializeRobot(this->world->GetMap());
+    this->slamModule->InitSlam(this->robotModel->GetRealX(), this->robotModel->GetRealY(), this->robotModel->GetRealTheta());
+    this->graphicsModule->GiveRenderMapAddress(this->slamModule->GetRenderMapAddress());
+    this->graphicsModule->GiveRenderMapGuard(this->slamModule->GetRenderMapGuard());
+
+    //set slam algorithm here?
 
     RenderPacket* renderPacket = new RenderPacket(
         this->robotModel->GetRealX(),
         this->robotModel->GetRealY(),
         this->robotModel->GetRealTheta(),
-        nullptr
+        nullptr,
+        this->robotModel->GetRealX(),
+        this->robotModel->GetRealY(),
+        this->robotModel->GetRealTheta()
     );
             
     this->graphicsModule->UpdateRenderInfo(renderPacket);
@@ -94,19 +100,19 @@ void Simulator::RunMainLoop() {
         lastTime = now;
         motionAccumulator += elapsed.count();
         scanAccumulator += elapsed.count();
-        slamAccumulator += elapsed.count();
         mainAccumulator += elapsed.count();
         totalAccumulator += elapsed.count();
 
 
         while(motionAccumulator >= motionPeriod) {
-            //update AI
+            //todo update AI
             
             RobotCommand initialCommand = this->aiModule->GetCommand();
-            /*RobotCommand finalCommand = */this->robotModel->CommandRobot(initialCommand);
+            RobotCommand refinedCommand = this->robotModel->CommandRobot(initialCommand);
 
-            // std::cout << "pos: " << this->robotModel->GetRealX() << " " << this->robotModel->GetRealY() << " " << this->robotModel->GetRealTheta() << std::endl;
-
+            double pointCloudTimestamp;
+            PointCloud* pointCloud = this->robotModel->CopyLatestScan(pointCloudTimestamp);
+            this->slamModule->UpdateSlam(refinedCommand, totalAccumulator, pointCloudTimestamp, pointCloud);
 
             motionAccumulator -= motionPeriod;
         }
@@ -116,32 +122,21 @@ void Simulator::RunMainLoop() {
             scanAccumulator -= scanPeriod;
         }
 
-        while(slamAccumulator >= slamPeriod) {
-            //run slam algorithm update
-            //uses refined command?
-            PointCloud* pointCloud = this->robotModel->CopyLatestScan();
-
-            //updateSLAM(refinedCommand, pointCloud) // must check if pointCloud isn't nullptr
-
-            delete pointCloud; //delete copy made
-            slamAccumulator -= slamPeriod;
-        }
-
         while(mainAccumulator >= mainPeriod) {
-            //get updated graphics
-            //map = GetMap();
-            //pose = GetPose();
+            //todo get updated graphics
+            this->slamModule->GetPose(poseX, poseY, poseTheta);
             //Trajectory = UpdateTrajectory();
 
             // save cpu cycles by not making copy
             OPoint** renderPointCloud = this->robotModel->CopyLatestRenderScan();
-            // std::cout << "checkpoint 1" << std::endl;
 
             RenderPacket* renderPacket = new RenderPacket(
                 this->robotModel->GetRealX(),
                 this->robotModel->GetRealY(),
                 this->robotModel->GetRealTheta(),
-                renderPointCloud
+                renderPointCloud,
+                poseX, poseY, poseTheta
+                // slam render packet? (contains particles or landmarks/pose estimation)
             );
             
             this->graphicsModule->UpdateRenderInfo(renderPacket);

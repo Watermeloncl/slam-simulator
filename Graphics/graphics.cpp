@@ -4,6 +4,9 @@
 #include <unordered_map>
 #include <utility>
 #include <cmath>
+#include <vector>
+#include <mutex>
+#include <memory>
 
 #include "graphics.h"
 #include "..\Listener\listener.h"
@@ -11,7 +14,6 @@
 #include "..\World\Objects\oline.h"
 #include "..\World\Objects\opoint.h"
 #include "..\Utilities\mathUtilities.h"
-// #include "..\Models\Lidar\polarPoint.h"
 #include "../config.h"
 
 
@@ -51,11 +53,36 @@ void GraphicsModule::InitD2D() {
     }
 
     this->sensorClip = D2D1::RectF(
-        0,
-        CLIENT_SCREEN_HEIGHT / 2.0,
-        CLIENT_SCREEN_WIDTH / 2.0,
-        CLIENT_SCREEN_HEIGHT
+        BACKGROUND_LINE_WIDTH,
+        (CLIENT_SCREEN_HEIGHT / 2.0),
+        (CLIENT_SCREEN_WIDTH / 2.0) - (BACKGROUND_LINE_WIDTH / 2.0),
+        CLIENT_SCREEN_HEIGHT - BACKGROUND_LINE_WIDTH
     );
+
+    this->slamClip = D2D1::RectF(
+        BACKGROUND_LINE_WIDTH,
+        BACKGROUND_LINE_WIDTH,
+        (CLIENT_SCREEN_WIDTH / 2.0) - (BACKGROUND_LINE_WIDTH / 2.0),
+        (CLIENT_SCREEN_HEIGHT / 2.0) - (BACKGROUND_LINE_WIDTH / 2.0)
+    );
+
+    D2D1_BITMAP_PROPERTIES props2 = D2D1::BitmapProperties(
+        D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)
+    );
+
+    this->deviceContext->CreateBitmap(
+        D2D1::SizeU(COLOR_PALETTE_WALLS_SIZE, 1),
+        COLOR_PALETTE_WALLS,
+        COLOR_PALETTE_WALLS_SIZE*4,
+        &props2,
+        &(this->whitePixelBitmap)
+    );
+
+    this->wallColorSources = new D2D1_RECT_F[COLOR_PALETTE_WALLS_SIZE];
+    for (int i = 0; i < COLOR_PALETTE_WALLS_SIZE; i++) {
+        this->wallColorSources[i] = D2D1::RectF((float)i, 0.0F, (float)i + 1.0F, 1.0F);
+    }
+
 }
 
 void GraphicsModule::CleanupD2D() {
@@ -78,13 +105,13 @@ void GraphicsModule::RenderFrame() {
 
     //draw dynamic elements. consider push axis aligned clip and setTransform
     this->DrawRobot();
-    this->DrawPointCloud(); //check if nullptr!
+    this->DrawPointCloud();
+    this->DrawMap(); //must check that render grid isn't nullptr!
 
     this->deviceContext->EndDraw(); // BLOCKS for VSync
 }
 
 void GraphicsModule::CreateBackground(Map* map) {
-    std::cout << "Creating background" << std::endl;
     // Begin Context
     deviceContext->CreateCommandList(&this->commandList);
     deviceContext->SetTarget(this->commandList);
@@ -140,11 +167,12 @@ void GraphicsModule::UpdateRenderInfo(RenderPacket* incoming) {
 }
 
 void GraphicsModule::DrawRobot() {
-    int quadrants[] = {BOTTOM_LEFT, TOP_RIGHT};
-    for(int i = 0; i < 2; i++) {
+    int quadrants[] = {BOTTOM_LEFT, TOP_RIGHT, TOP_LEFT};
+    for(int i = 0; i < 3; i++) {
         std::pair<float, float> temp = this->XYToDipsBackground(quadrants[i], this->currentPacket->realX, this->currentPacket->realY);
+
         deviceContext->DrawEllipse(
-            D2D1::Ellipse(D2D1::Point2F(temp.first, temp.second), (float)ROBOT_RADIUS, (float)ROBOT_RADIUS),
+            D2D1::Ellipse(D2D1::Point2F(temp.first, temp.second), ROBOT_RADIUS, ROBOT_RADIUS),
             this->brushes[COLOR_PALETTE_BLACK],
             1.5,
             nullptr
@@ -183,6 +211,56 @@ void GraphicsModule::DrawPointCloud() {
     }
 
     this->deviceContext->PopAxisAlignedClip();
+}
+
+
+void GraphicsModule::DrawMap() {
+    std::lock_guard<std::mutex> lock(*(this->guardRenderMap));
+
+    if((this->renderMapAddress == nullptr) || (*(this->renderMapAddress) == nullptr)) {
+        return;
+    }
+
+    this->deviceContext->PushAxisAlignedClip(this->slamClip, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+
+    std::vector<float>* map = *(this->renderMapAddress);
+    int colorIndex;
+    double colorMult = (1.0 / GMAPPING_MAX_LOG_ODDS) * COLOR_PALETTE_WALLS_SIZE;
+
+    for (long long unsigned int i = 0; i < map->size(); i += 3) {
+        if((*map)[i + 2] == GMAPPING_MAX_LOG_ODDS) {
+            colorIndex = 9;
+        } else {
+            colorIndex = (int)(((*map)[i + 2]) * colorMult);
+        }
+        
+        D2D1_RECT_F wallRect = D2D1::RectF(
+            (*map)[i], 
+            (*map)[i + 1], 
+            (*map)[i] + GMAPPING_CELL_SIZE_DIPS, 
+            (*map)[i + 1] + GMAPPING_CELL_SIZE_DIPS
+        );
+
+        this->deviceContext->DrawBitmap(
+            this->whitePixelBitmap,
+            &wallRect,
+            1.0F,
+            D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR, 
+            &(this->wallColorSources[colorIndex])
+        );
+    }
+
+    this->deviceContext->PopAxisAlignedClip();
+}
+
+void GraphicsModule::GiveRenderMapAddress(std::vector<float>** address) {
+    this->renderMapAddress = address;
+    // (*(this->renderMapAddress)) access like this
+}
+
+void GraphicsModule::GiveRenderMapGuard(std::shared_ptr<std::mutex> guard) {
+    this->guardRenderMap = guard;
+    // (*(this->renderManGuard)) access like this
 }
 
 void GraphicsModule::CreateWindowModule(HINSTANCE hInstance, int nCmdShow) {
