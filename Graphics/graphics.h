@@ -44,9 +44,10 @@ public:
 
     void UpdateRenderInfo(RenderPacket* incoming);
 
-    void DrawRobot();
+    void DrawRobot(int quadrant, double x, double y, double theta, bool varsInScreenForm);
     void DrawPointCloud();
     void DrawMap();
+    void DrawPoses();
 
     void GiveRenderMapAddress(std::vector<float>** address);
     void GiveRenderMapGuard(std::shared_ptr<std::mutex> guard);

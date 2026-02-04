@@ -3,7 +3,6 @@
 #include <mutex>
 
 #include "motionModel.h"
-#include "..\Utilities\utilities.h"
 #include "..\Utilities\mathUtilities.h"
 #include "..\World\map.h"
 #include "..\config.h"
@@ -50,13 +49,12 @@ void MotionModel::SetStartPosition(double x, double y, double theta) {
     this->realTheta = theta;
 }
 
-void MotionModel::UpdateRobotPosition(RobotCommand command) {
-    double changeX = 0.0;
-    double changeY = 0.0;
-    double changeTheta = 0.0;
+void MotionModel::GetMovement(RobotCommand initialCommand, double& changeDist, double& changeTheta) {
+    MathUtilities::SampleCommand(initialCommand, this->realTheta, this->velocity, changeDist, changeTheta);
+}
 
-    MathUtilities::SampleCommand(command, this->realTheta, this->velocity, changeX, changeY, changeTheta);
-    this->ChangeRealTheta(changeTheta);
+void MotionModel::UpdateRobotPosition(double changeX, double changeY, double changeTheta) {
     this->ChangeRealX(changeX);
     this->ChangeRealY(changeY);
+    this->ChangeRealTheta(changeTheta);
 }

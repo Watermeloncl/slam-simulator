@@ -104,9 +104,11 @@ void GraphicsModule::RenderFrame() {
     this->DrawStaticElements();
 
     //draw dynamic elements. consider push axis aligned clip and setTransform
-    this->DrawRobot();
+    this->DrawRobot(TOP_RIGHT, this->currentPacket->realX, this->currentPacket->realY, this->currentPacket->realTheta, false);
+    this->DrawRobot(BOTTOM_LEFT, this->currentPacket->realX, this->currentPacket->realY, this->currentPacket->realTheta, false);
     this->DrawPointCloud();
-    this->DrawMap(); //must check that render grid isn't nullptr!
+    this->DrawMap();
+    this->DrawPoses(); // must check for nullptr
 
     this->deviceContext->EndDraw(); // BLOCKS for VSync
 }
@@ -166,27 +168,30 @@ void GraphicsModule::UpdateRenderInfo(RenderPacket* incoming) {
     this->currentPacket = incoming;
 }
 
-void GraphicsModule::DrawRobot() {
-    int quadrants[] = {BOTTOM_LEFT, TOP_RIGHT, TOP_LEFT};
-    for(int i = 0; i < 3; i++) {
-        std::pair<float, float> temp = this->XYToDipsBackground(quadrants[i], this->currentPacket->realX, this->currentPacket->realY);
+void GraphicsModule::DrawRobot(int quadrant, double x, double y, double theta, bool varsInScreenForm) {
 
-        deviceContext->DrawEllipse(
-            D2D1::Ellipse(D2D1::Point2F(temp.first, temp.second), ROBOT_RADIUS, ROBOT_RADIUS),
-            this->brushes[COLOR_PALETTE_BLACK],
-            1.5,
-            nullptr
-        );
-
-        deviceContext->DrawLine(
-            D2D1::Point2F(temp.first, temp.second),
-            D2D1::Point2F((float)(temp.first + (ROBOT_RADIUS * std::cos(this->currentPacket->realTheta))),
-                          (float)(temp.second - (ROBOT_RADIUS * std::sin(this->currentPacket->realTheta)))),
-            this->brushes[COLOR_PALETTE_BLACK],
-            2,
-            nullptr
-        );
+    std::pair<float, float> temp;
+    if(!varsInScreenForm) {
+        temp = this->XYToDipsBackground(quadrant, x, y);
+    } else {
+        temp = {(float)x, (float)y};
     }
+
+    deviceContext->DrawEllipse(
+        D2D1::Ellipse(D2D1::Point2F(temp.first, temp.second), ROBOT_RADIUS, ROBOT_RADIUS),
+        this->brushes[COLOR_PALETTE_BLACK],
+        1.5,
+        nullptr
+    );
+
+    deviceContext->DrawLine(
+        D2D1::Point2F(temp.first, temp.second),
+        D2D1::Point2F((float)(temp.first + (ROBOT_RADIUS * std::cos(theta))),
+                        (float)(temp.second - (ROBOT_RADIUS * std::sin(theta)))),
+        this->brushes[COLOR_PALETTE_BLACK],
+        2,
+        nullptr
+    );
 }
 
 void GraphicsModule::DrawPointCloud() {
@@ -251,6 +256,38 @@ void GraphicsModule::DrawMap() {
     }
 
     this->deviceContext->PopAxisAlignedClip();
+}
+
+void GraphicsModule::DrawPoses() {
+    if(this->currentPacket->poses == nullptr) {
+        return;
+    }
+
+    if(STARTING_SLAM == SLAM_OPTION_GMAPPING) {
+        PoseRenderPacket* posePacket = this->currentPacket->poses;
+
+        float x, y, endX, endY;
+        double theta;
+        for(int index = posePacket->valueSetSize; index < posePacket->numValues; index += posePacket->valueSetSize) {
+            x = (float)(posePacket->poses[index]);
+            y = (float)(posePacket->poses[index + 1]);
+            theta = posePacket->poses[index + 2];
+
+            deviceContext->FillEllipse(
+                D2D1::Ellipse(D2D1::Point2F(x, y), GMAPPING_PARTICLE_RADIUS, GMAPPING_PARTICLE_RADIUS),
+                this->brushes[COLOR_PALETTE_BLUE]
+            );
+
+            endX = x + ((float)(std::cos(theta) * GMAPPING_PARTICLE_POINTER_LENGTH));
+            endY = y - ((float)(std::sin(theta) * GMAPPING_PARTICLE_POINTER_LENGTH)); //flip screen upside down
+
+            deviceContext->DrawLine(D2D1::Point2F(x, y), D2D1::Point2F(endX, endY), this->brushes[COLOR_PALETTE_BLUE], GMAPPING_PARTICLE_POINTER_WIDTH);
+        }
+
+        //draw most confident pose
+        //TODO puts into screen space, but gmapping already did (because we'll likely render many times between updates...)
+        this->DrawRobot(TOP_LEFT, posePacket->poses[0], posePacket->poses[1], posePacket->poses[2], true);
+    }
 }
 
 void GraphicsModule::GiveRenderMapAddress(std::vector<float>** address) {

@@ -1,17 +1,15 @@
 #include "renderPacket.h"
 #include "..\World\Objects\opoint.h"
+#include "..\SLAMModels\MapRepresentation\poseRenderPacket.h"
 #include "..\config.h"
 
-RenderPacket::RenderPacket(double realX, double realY, double realTheta, OPoint** pointCloud, double poseX, double poseY, double poseTheta) {
+RenderPacket::RenderPacket(double realX, double realY, double realTheta, OPoint** pointCloud, PoseRenderPacket* poses) {
     this->realX = realX;
     this->realY = realY;
     this->realTheta = realTheta;
 
     this->pointCloud = pointCloud;
-
-    this->poseX = poseX;
-    this->poseY = poseY;
-    this->poseTheta = poseTheta;
+    this->poses = poses;
 }
 
 // does not currently delete grid
@@ -23,4 +21,6 @@ RenderPacket::~RenderPacket() {
         
         delete[] this->pointCloud;
     }
+
+    delete this->poses;
 }

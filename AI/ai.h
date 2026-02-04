@@ -6,6 +6,7 @@
 class AIModule {
 public:
 private:
+    bool flipper = false;
 
 public:
     AIModule();

@@ -16,8 +16,7 @@ public:
     ~EKF();
 
     void InitSlam(double startX, double startY, double startTheta);
-    void UpdateSlam(RobotCommand command, double commandTimestamp, double pointCloudTimestamp, PointCloud* pointCloud);
-    void GetPose(double& x, double& y, double& theta);
+    void UpdateSlam(double changeDist, double changeTheta, double commandTimestamp, double pointCloudTimestamp, PointCloud* pointCloud);
 private:
 
 };

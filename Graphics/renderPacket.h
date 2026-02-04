@@ -2,6 +2,7 @@
 #define GRAPHICS_RENDER_PACKET_H_
 
 #include "..\World\Objects\opoint.h"
+#include "..\SLAMModels\MapRepresentation\poseRenderPacket.h"
 
 struct RenderPacket {
 public:
@@ -10,12 +11,9 @@ public:
     double realTheta;
 
     OPoint** pointCloud;
+    PoseRenderPacket* poses;
 
-    double poseX;
-    double poseY;
-    double poseTheta;
-
-    RenderPacket(double realX, double realY, double realTheta, OPoint** pointCloud, double poseX, double poseY, double poseTheta);
+    RenderPacket(double realX, double realY, double realTheta, OPoint** pointCloud, PoseRenderPacket* poses);
     ~RenderPacket();
 };
 

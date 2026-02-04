@@ -12,6 +12,7 @@
 #include "..\SLAMModels\Templates\slam.h"
 #include "..\SLAMModels\EKF\ekf.h"
 #include "..\SLAMModels\Gmapping\gmapping.h"
+#include "..\SLAMModels\MapRepresentation\poseRenderPacket.h"
 #include "..\config.h"
 
 using SchedClock = std::chrono::high_resolution_clock;
@@ -55,7 +56,7 @@ void Simulator::RunMainLoop() {
     double motionPeriod = MOTION_PERIOD;
 
     double totalAccumulator = 0.0;
-    double poseX, poseY, poseTheta;
+    double changeDist, changeTheta;
 
     MSG msg = {};
 
@@ -71,9 +72,7 @@ void Simulator::RunMainLoop() {
         this->robotModel->GetRealY(),
         this->robotModel->GetRealTheta(),
         nullptr,
-        this->robotModel->GetRealX(),
-        this->robotModel->GetRealY(),
-        this->robotModel->GetRealTheta()
+        nullptr
     );
             
     this->graphicsModule->UpdateRenderInfo(renderPacket);
@@ -108,12 +107,11 @@ void Simulator::RunMainLoop() {
             //todo update AI
             
             RobotCommand initialCommand = this->aiModule->GetCommand();
-            RobotCommand refinedCommand = this->robotModel->CommandRobot(initialCommand);
+            this->robotModel->CommandRobot(initialCommand, changeDist, changeTheta);
 
             double pointCloudTimestamp;
             PointCloud* pointCloud = this->robotModel->CopyLatestScan(pointCloudTimestamp);
-            this->slamModule->UpdateSlam(refinedCommand, totalAccumulator, pointCloudTimestamp, pointCloud);
-
+            this->slamModule->UpdateSlam(changeDist, changeTheta, totalAccumulator, pointCloudTimestamp, pointCloud);
             motionAccumulator -= motionPeriod;
         }
 
@@ -124,7 +122,7 @@ void Simulator::RunMainLoop() {
 
         while(mainAccumulator >= mainPeriod) {
             //todo get updated graphics
-            this->slamModule->GetPose(poseX, poseY, poseTheta);
+            PoseRenderPacket* poses = this->slamModule->GetPoses();
             //Trajectory = UpdateTrajectory();
 
             // save cpu cycles by not making copy
@@ -135,8 +133,7 @@ void Simulator::RunMainLoop() {
                 this->robotModel->GetRealY(),
                 this->robotModel->GetRealTheta(),
                 renderPointCloud,
-                poseX, poseY, poseTheta
-                // slam render packet? (contains particles or landmarks/pose estimation)
+                poses
             );
             
             this->graphicsModule->UpdateRenderInfo(renderPacket);

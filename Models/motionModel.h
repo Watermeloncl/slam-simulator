@@ -11,9 +11,9 @@ public:
 private:
     Map* map = nullptr;
 
-    double realX = 0;
-    double realY = 0;
-    double realTheta = 0;
+    double realX = 0.0;
+    double realY = 0.0;
+    double realTheta = 0.0;
 
     double velocity = 0.0;
 
@@ -33,7 +33,8 @@ public:
     
     void SetStartPosition(double x, double y, double theta);
 
-    void UpdateRobotPosition(RobotCommand command);
+    void GetMovement(RobotCommand initialCommand, double& changeChange, double& changeTheta);
+    void UpdateRobotPosition(double changeX, double changeY, double changeTheta);
 private:
 
 };

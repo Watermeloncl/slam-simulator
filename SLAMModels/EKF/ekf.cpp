@@ -16,7 +16,7 @@ void EKF::InitSlam(double startX, double startY, double startTheta) {
     
 }
 
-void EKF::UpdateSlam(RobotCommand command, double commandTimestamp, double pointCloudTimestamp, PointCloud* pointCloud) {
+void EKF::UpdateSlam(double changeDist, double changeTheta, double commandTimestamp, double pointCloudTimestamp, PointCloud* pointCloud) {
     // Check if pointcloud is nullptr
     // Estimate and update pose
     // Estimate delta xytheta and send to landmark
@@ -32,8 +32,4 @@ void EKF::UpdateSlam(RobotCommand command, double commandTimestamp, double point
 
     //MUST DELETE POINT CLOUD
     delete pointCloud;
-}
-
-void EKF::GetPose(double& x, double& y, double& theta) {
-    
 }

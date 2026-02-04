@@ -34,7 +34,7 @@ public:
     PointCloud* CopyLatestScan(double& pointCloudTimestamp);
     OPoint** CopyLatestRenderScan();
 
-    RobotCommand CommandRobot(RobotCommand initialCommand);
+    void CommandRobot(RobotCommand initialCommand, double& deltaDist, double& deltaTheta);
 
 private:
 

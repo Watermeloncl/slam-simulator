@@ -2,12 +2,13 @@
 #define CONFIG_H_
 
 #include <utility>
+#include <cmath>
 
 // Possible SLAM options
 #define SLAM_OPTION_EKF 0
 #define SLAM_OPTION_GMAPPING 1
 
-const int STARTING_MAP = 1;
+const int STARTING_MAP = 2;
 const int STARTING_SLAM = SLAM_OPTION_GMAPPING;
 const bool SHOW_POSSIBLE_STARTING_LOCATIONS = false;
 
@@ -36,13 +37,13 @@ const std::pair<double, double> SENSOR_MODEL_ACCURACY[SENSOR_MODEL_ACCURACY_TIER
 const double SENSOR_MODEL_RANGE_RESOLUTION = 0.01;
 
 // Motion Model Details
-const double MOTION_MODEL_ACCELERATION = 500.0 * MOTION_PERIOD; // mm/s^2
+const double MOTION_MODEL_ACCELERATION = 150.0 * MOTION_PERIOD; // mm/s^2
 const double MOTION_MODEL_MAX_VELOCITY = 300.0 * MOTION_PERIOD; // mm/s
 const double MOTION_MODEL_ROTATION = 1.0 * MOTION_PERIOD; // 1 rad/s, or 57.2 degrees per second
-const double MOTION_MODEL_FORWARD_DEVIATION = 0.05; //5%: hardwood floor
-const double MOTION_MODEL_FORWARD_ROTATION_DEVIATION = 0.02 / 3; // +- 0.02 within 3 sigma (fixed)
-const double MOTION_MODEL_ROTATION_DEVIATION = 0.02; //2%: hardwood floor
-const double MOTION_MODEL_ROTATION_FIXED = MOTION_MODEL_ROTATION_DEVIATION * MOTION_MODEL_ROTATION;
+const double MOTION_MODEL_FORWARD_DEVIATION = 0.05; //0.05; //5%: hardwood floor
+const double MOTION_MODEL_FORWARD_ROTATION_DEVIATION = 0.02 * std::sqrt(MOTION_MODEL_MAX_VELOCITY / 1000); //0.02 radians per meter, hardwood floor
+const double MOTION_MODEL_ROTATION_DEVIATION = 0.05; //0.02; //2%: hardwood floor
+const double MOTION_MODEL_ROTATION_FIXED = MOTION_MODEL_ROTATION_DEVIATION * std::sqrt(MOTION_PERIOD / 1.0);
 
 // Gmapping Configurations
 const int GMAPPING_NUM_PARTICLES = 30;
@@ -75,18 +76,20 @@ const float GMAPPING_CELL_SIZE_DIPS = (float)(GMAPPING_GRID_CELL_SIZE / MM_PER_D
 //  1) increase size
 //  2) add color to const ints
 //  3) add that const int to value set
-const int COLOR_PALETTE_SIZE = 4;
+const int COLOR_PALETTE_SIZE = 5;
 
 const int COLOR_PALETTE_BACKGROUND = 0xe3e3e3;
 const int COLOR_PALETTE_RED = 0xFF0000;
 const int COLOR_PALETTE_WHITE = 0xFFFFFF;
 const int COLOR_PALETTE_BLACK = 0x000000;
+const int COLOR_PALETTE_BLUE = 0x0051FF;
 
 const int COLOR_PALETTE_VALUES[COLOR_PALETTE_SIZE] = {
     COLOR_PALETTE_BACKGROUND,
     COLOR_PALETTE_RED,
     COLOR_PALETTE_WHITE,
-    COLOR_PALETTE_BLACK
+    COLOR_PALETTE_BLACK,
+    COLOR_PALETTE_BLUE
 };
 
 const int COLOR_PALETTE_WALLS_SIZE = 10;
@@ -100,7 +103,7 @@ const unsigned int COLOR_PALETTE_WALLS[COLOR_PALETTE_WALLS_SIZE] = {
     0xFF4B4B4B, //7: 75
     0xFF323232, //8: 50
     0xFF191919, //9: 25
-    0xFF000000, //10: 0
+    0xFF000000 //10: 0
 };
 
 const int COLOR_WALL_BRUSH = 0xFFFFFFFF; // fear made me make this. Fear and ignorance. Powerful combo.
@@ -110,8 +113,10 @@ const int BACKGROUND_LINE_WIDTH = 4;
 const int MAP_LINE_WIDTH = 2;
 
 const int ROBOT_RADIUS = 8;
-
 const double LIDAR_POINT_RADIUS = 2.0;
+const double GMAPPING_PARTICLE_RADIUS = 3.0;
+const double GMAPPING_PARTICLE_POINTER_LENGTH = 6.0;
+const double GMAPPING_PARTICLE_POINTER_WIDTH = 2.0;
 
 // Map Specs
 const int MAX_MAP_LINES = 64;

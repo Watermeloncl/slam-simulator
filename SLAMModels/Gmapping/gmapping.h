@@ -21,10 +21,6 @@ private:
 
     Particle** particles = nullptr;
 
-    // Needed for P(Xt | Xt-1, u)?
-    std::pair<RobotCommand, double>* commandHistory = nullptr;
-    int nextCommand = 0;
-
     HANDLE slamSemaphore;
     std::thread slamThread;
     std::atomic<bool> slamFinished;
@@ -58,11 +54,8 @@ public:
 
     void InitSlam(double startX, double startY, double startTheta);
 
-    void UpdateSlam(RobotCommand command, double commandTimestamp, double pointCloudTimestamp, PointCloud* pointCloud);
-    void GetPose(double& x, double& y, double& theta);
+    void UpdateSlam(double changeDist, double changeTheta, double commandTimestamp, double pointCloudTimestamp, PointCloud* pointCloud);
 private:
-    void AddToHistory(RobotCommand command, double timstamp);
-
     void RefineEstimates();
 
     void UpdateMaps();
@@ -70,6 +63,9 @@ private:
 
     void CreateRenderCopy(int particleIndex);
     std::pair<float, float> XYToDips(double x, double y);
+
+    void UpdatePoses();
+    int GetStrongestParticleIndex();
 };
 
 #endif

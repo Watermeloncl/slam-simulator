@@ -17,6 +17,8 @@
 #include "..\..\Models\Lidar\pointCloud.h"
 #include "..\MapRepresentation\occupancyGrid.h"
 #include "..\MapRepresentation\sector.h"
+#include "..\MapRepresentation\poseRenderPacket.h"
+#include "..\..\Utilities\utilities.h"
 #include "..\..\Utilities\mathUtilities.h"
 #include "..\..\config.h"
 
@@ -28,11 +30,6 @@ Gmapping::Gmapping() : SLAMModule() {
         this->particles[i] = nullptr;
     }
 
-    this->commandHistory = new std::pair<RobotCommand, double>[GMAPPING_HISTORY_SIZE];
-    for(int i = 0; i < GMAPPING_HISTORY_SIZE; i++) {
-        this->commandHistory[i] = {RobotCommand::STOP, 0};
-    }
-
     this->guardRenderMap = std::make_shared<std::mutex>();
 }
 
@@ -42,8 +39,6 @@ Gmapping::~Gmapping() {
         delete this->particles[i];
     }
     delete[] this->particles;
-
-    delete[] this->commandHistory;
 
     //todo add way to destroy thread
 }
@@ -80,32 +75,39 @@ void Gmapping::InitSlam(double startX, double startY, double startTheta) {
     }
 }
 
-void Gmapping::UpdateSlam(RobotCommand command, double commandTimestamp, double pointCloudTimestamp, PointCloud* pointCloud) {
+void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandTimestamp, double pointCloudTimestamp, PointCloud* pointCloud) {
+    // what was commandtimestep for? outside history of commands
+
     // Check if slam algorithm updated particle poses
     // Integrate moves to new poses
-    // Follow robot commands from that position along history since we kicked off slam algorithm
-    // TODO update motion (move all particles)
-    double changeX, changeY, changeTheta;
 
+    double noisyDist = 0;
     for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-        changeX = 0.0;
-        changeY = 0.0;
-        changeTheta = 0.0;
+        if(changeDist == 0) {
+            if(changeTheta == 0) {
+                break;
+            }
+            this->particles[i]->theta += changeTheta + Utilities::GetFixedNoise(MOTION_MODEL_ROTATION_FIXED);
+            continue;
+        }
 
-        MathUtilities::SampleCommand(command, this->particles[i]->currScanTheta, 0, changeX, changeY, changeTheta);
-        this->particles[i]->x += changeX;
-        this->particles[i]->y += changeY;
-        this->particles[i]->theta += changeTheta;
+        this->particles[i]->theta += (changeTheta + Utilities::GetFixedNoise(MOTION_MODEL_FORWARD_ROTATION_DEVIATION));
+        noisyDist = changeDist + Utilities::GetRandomNoise(changeDist, MOTION_MODEL_FORWARD_DEVIATION);
+
+        this->particles[i]->x += (noisyDist * std::cos(this->particles[i]->theta));
+        this->particles[i]->y += (noisyDist * std::sin(this->particles[i]->theta));
     }
 
+    this->UpdatePoses();
+
     //update accumulated pose (total movement)
-    //update accumulating x, y, theta within gmapping, what is the ideal? (no noise) (movement since last scan)
+    //update accumulating x, y, theta within gmapping, what is the ideal? (no noise?) (movement since last scan)
 
 
     //check time stamps and update particle history if required
     if(pointCloudTimestamp != this->lastScanTimestamp) {
         this->lastScanTimestamp = pointCloudTimestamp;
-
+        
         for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
             this->particles[i]->UpdateHistory();
         }
@@ -119,7 +121,6 @@ void Gmapping::UpdateSlam(RobotCommand command, double commandTimestamp, double 
         this->accumulatingExpTheta = 0.0;
     }
 
-    this->AddToHistory(command, commandTimestamp);
     (this->ticksSinceLastUpdate)++;
 
     if(pointCloud == nullptr) {
@@ -156,23 +157,9 @@ void Gmapping::UpdateSlam(RobotCommand command, double commandTimestamp, double 
     }    
 }
 
-void Gmapping::GetPose(double& x, double& y, double& theta) {
-
-}
-
-void Gmapping::AddToHistory(RobotCommand command, double timestamp) {
-    this->commandHistory[this->nextCommand] = {command, timestamp};
-    (this->nextCommand)++;
-
-    if(this->nextCommand >= GMAPPING_HISTORY_SIZE) {
-        this->nextCommand = 0;
-    }
-}
-
 void Gmapping::RefineEstimates() {
     for(;;) {
         WaitForSingleObject(this->slamSemaphore, INFINITE);
-        // std::cout << "running refine estimates" << std::endl;
 
         //add way to destroy
         //use this->currPacket
@@ -189,7 +176,6 @@ void Gmapping::RefineEstimates() {
         
         // }
 
-        // std::cout << "===================== start update =====================" << std::endl;
         this->UpdateMaps();
 
         this->CreateRenderCopy(0);
@@ -214,9 +200,9 @@ void Gmapping::UpdateMaps() {
     double poseStartY = particle->oldScanY;
     double poseStartTheta = particle->oldScanTheta;
 
-    double deltaX = ((particle->currScanX) - poseStartX) / SENSOR_MODEL_POINTS_PER_SCAN;
-    double deltaY = ((particle->currScanY) - poseStartY) / SENSOR_MODEL_POINTS_PER_SCAN;
-    double deltaTheta = ((particle->currScanTheta) - poseStartTheta) / SENSOR_MODEL_POINTS_PER_SCAN;
+    double deltaX = (particle->currScanX - poseStartX) / SENSOR_MODEL_POINTS_PER_SCAN;
+    double deltaY = (particle->currScanY - poseStartY) / SENSOR_MODEL_POINTS_PER_SCAN;
+    double deltaTheta = (particle->currScanTheta - poseStartTheta) / SENSOR_MODEL_POINTS_PER_SCAN;
 
     double startRadian = ((pi*2) - (deltaRadian / 2));
 
@@ -322,7 +308,7 @@ void Gmapping::CreateRenderCopy(int particleIndex) {
             mapY = (sectorY + (i / GMAPPING_SECTOR_SIZE)) * GMAPPING_GRID_CELL_SIZE;
             worldX = (mapX*cosTheta) - (mapY*sinTheta) + this->startX;
             worldY = (mapX*sinTheta) + (mapY*cosTheta) + this->startY;
-            
+
             screenCords = this->XYToDips(worldX, worldY);
 
             newRenderMap->push_back(screenCords.first);
@@ -341,4 +327,49 @@ std::pair<float, float> Gmapping::XYToDips(double x, double y) {
         (CLIENT_SCREEN_WIDTH * 0.25) + (x / MM_PER_DIP) + 1,
         (CLIENT_SCREEN_HEIGHT * 0.25) + (y / MM_PER_DIP * -1) + 1
     };
+}
+
+void Gmapping::UpdatePoses() {
+    std::lock_guard<std::mutex> lock(this->guardPoses);
+
+    PoseRenderPacket* newPacket = new PoseRenderPacket(GMAPPING_NUM_PARTICLES, 3);
+    int strongestIndex = this->GetStrongestParticleIndex();
+
+    std::pair<double, double> screenCords;
+    double cosTheta = std::cos(this->startTheta);
+    double sinTheta = std::sin(this->startTheta);
+
+    //rotate, translate, then convert to dips
+    double worldX = ((this->particles[strongestIndex]->x)*cosTheta)-((this->particles[strongestIndex]->y)*sinTheta) + this->startX;
+    double worldY = ((this->particles[strongestIndex]->x)*sinTheta)+((this->particles[strongestIndex]->y)*cosTheta) + this->startY;
+    screenCords = this->XYToDips(worldX, worldY);
+
+    newPacket->AddPose({screenCords.first, screenCords.second, this->particles[strongestIndex]->theta + this->startTheta});
+
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+        if(i == strongestIndex) {
+            continue;
+        }
+
+        worldX = ((this->particles[i]->x)*cosTheta)-((this->particles[i]->y)*sinTheta) + this->startX;
+        worldY = ((this->particles[i]->x)*sinTheta)+((this->particles[i]->y)*cosTheta) + this->startY;
+        screenCords = this->XYToDips(worldX, worldY);
+        
+        newPacket->AddPose({screenCords.first, screenCords.second, this->particles[i]->theta + this->startTheta});
+    }
+
+    this->ReplacePoses(newPacket);
+}
+
+int Gmapping::GetStrongestParticleIndex() {
+    int index = 0;
+    double maxWeight = -1;
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+        if(this->particles[i]->weight > maxWeight) {
+            maxWeight = this->particles[i]->weight;
+            index = i;
+        }
+    }
+
+    return index;
 }
