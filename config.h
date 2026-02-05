@@ -23,7 +23,8 @@ const double GRAPHICS_FPS = 1.0 / 60.0; // Also how often motion is updated
 const double MOTION_PERIOD = GRAPHICS_FPS; // No point having it faster than graphics
 const int SLAM_MINIMUM_PERIOD_COUNT = 11; // At least how many frames must pass before the algorithm considers running (in tangent with slam_period) consider keeping at a minimum of scan period (10.9)
 const int SLAM_MAXIMUM_PERIOD_COUNT = 60; // The maximum frames that can pass before the algorithm must run
-const double SLAM_MINIMUM_DISTANCE = 50; // must move 50 mm before running full algorithm
+const double SLAM_MINIMUM_DISTANCE_PERCENT = 0.8; // a percentage of maximum movement within minimum period count (rotation scaled appropriately);
+                                                  //   helper equation defined lower as SLAM_MINIMUM_DISTANCE 
 
 // Defaults based on lidar specs {1% <= 3000, 2% 3-5, 2.5% 5+}. Be sure to cover measurement range.
 const int SENSOR_MODEL_ACCURACY_TIERS = 3;
@@ -42,8 +43,11 @@ const double MOTION_MODEL_MAX_VELOCITY = 300.0 * MOTION_PERIOD; // mm/s
 const double MOTION_MODEL_ROTATION = 1.0 * MOTION_PERIOD; // 1 rad/s, or 57.2 degrees per second
 const double MOTION_MODEL_FORWARD_DEVIATION = 0.05; //0.05; //5%: hardwood floor
 const double MOTION_MODEL_FORWARD_ROTATION_DEVIATION = 0.02 * std::sqrt(MOTION_MODEL_MAX_VELOCITY / 1000); //0.02 radians per meter, hardwood floor
-const double MOTION_MODEL_ROTATION_DEVIATION = 0.05; //0.02; //2%: hardwood floor
+const double MOTION_MODEL_ROTATION_DEVIATION = 0.02; //0.02; //2%: hardwood floor
 const double MOTION_MODEL_ROTATION_FIXED = MOTION_MODEL_ROTATION_DEVIATION * std::sqrt(MOTION_PERIOD / 1.0);
+
+const double MOTION_MODEL_ROTATION_AMP = MOTION_MODEL_MAX_VELOCITY / MOTION_PERIOD;
+const double SLAM_MINIMUM_DISTANCE = SLAM_MINIMUM_DISTANCE_PERCENT * (SLAM_MINIMUM_PERIOD_COUNT * MOTION_MODEL_MAX_VELOCITY); // must move 40 mm before running full algorithm (see rotation amp)
 
 // Gmapping Configurations
 const int GMAPPING_NUM_PARTICLES = 30;

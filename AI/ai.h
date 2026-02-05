@@ -6,6 +6,7 @@
 class AIModule {
 public:
 private:
+    bool started = false;
     bool flipper = false;
 
 public:

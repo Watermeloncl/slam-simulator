@@ -10,15 +10,13 @@ AIModule::~AIModule() {
 }
 
 RobotCommand AIModule::GetCommand(/*pose, map*/) {
-    //TODO
+    //prevents pre-rotation?
+    if(!(this->started)) {
+        this->started = true;
+        return RobotCommand::STOP;
+    }
 
-    // if(flipper) {
-    //     flipper = !flipper;
-    //     return RobotCommand::FORWARD;
-    // } else {
-    //     flipper = !flipper;
-    //     return RobotCommand::STOP;
-    // }
+    //TODO
 
     return RobotCommand::FORWARD;
 }

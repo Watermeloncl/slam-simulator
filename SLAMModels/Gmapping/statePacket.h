@@ -15,8 +15,7 @@ public:
     double commandTimestamp = 0.0;
     double pointCloudTimestamp = 0.0;
 
-    double expX = 0.0;
-    double expY = 0.0;
+    double expDist = 0.0;
     double expTheta = 0.0;
 
     void CopyInfo(Particle** particles);

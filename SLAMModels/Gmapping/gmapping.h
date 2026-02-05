@@ -24,6 +24,10 @@ private:
     HANDLE slamSemaphore;
     std::thread slamThread;
     std::atomic<bool> slamFinished;
+    bool backUpdated = true;
+
+    std::pair<double, double>* history;
+    int historySize = 0;
 
     int ticksSinceLastUpdate = 0;
 
@@ -33,17 +37,15 @@ private:
     //   Used for determining if slam should run given min distance
     double accumulatedPoseSinceLastUpdate = 0.0;
 
-    double lastScanExpX = 0.0;
-    double lastScanExpY = 0.0;
+    double lastScanExpDist = 0.0;
     double lastScanExpTheta = 0.0;
 
-    double accumulatingExpX = 0.0;
-    double accumulatingExpY = 0.0;
+    double accumulatingExpDist = 0.0;
     double accumulatingExpTheta = 0.0;
 
     double lastScanTimestamp = 0.0;
 
-    //for render purposes. No other function will access this!
+    //for render purposes. No other operation will access this!
     double startX = 0.0;
     double startY = 0.0;
     double startTheta = 0.0;
@@ -56,6 +58,8 @@ public:
 
     void UpdateSlam(double changeDist, double changeTheta, double commandTimestamp, double pointCloudTimestamp, PointCloud* pointCloud);
 private:
+    void MoveParticles(double changeDist, double changeTheta);
+
     void RefineEstimates();
 
     void UpdateMaps();

@@ -31,6 +31,8 @@ Gmapping::Gmapping() : SLAMModule() {
     }
 
     this->guardRenderMap = std::make_shared<std::mutex>();
+
+    this->history = new std::pair<double, double>[GMAPPING_HISTORY_SIZE];
 }
 
 Gmapping::~Gmapping() {
@@ -81,28 +83,38 @@ void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandT
     // Check if slam algorithm updated particle poses
     // Integrate moves to new poses
 
-    double noisyDist = 0;
-    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-        if(changeDist == 0) {
-            if(changeTheta == 0) {
-                break;
-            }
-            this->particles[i]->theta += changeTheta + Utilities::GetFixedNoise(MOTION_MODEL_ROTATION_FIXED);
-            continue;
+    if(!(this->slamFinished)) {
+        //track history
+        this->history[this->historySize].first = changeDist;
+        this->history[this->historySize].second = changeTheta;
+        (this->historySize)++;
+    } else if(this->slamFinished && !(this->backUpdated)) {
+        this->backUpdated = true;
+
+        for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+            this->particles[i]->x = this->currPacket->particles[i]->x;
+            this->particles[i]->y = this->currPacket->particles[i]->y;
+            this->particles[i]->theta = this->currPacket->particles[i]->theta;
+            //TODO this is where old particles need to convert to new ones (resampled)
         }
 
-        this->particles[i]->theta += (changeTheta + Utilities::GetFixedNoise(MOTION_MODEL_FORWARD_ROTATION_DEVIATION));
-        noisyDist = changeDist + Utilities::GetRandomNoise(changeDist, MOTION_MODEL_FORWARD_DEVIATION);
+        //TODO reset particles to "updated pose"
+        //TODO run through updates and add them to each particle
 
-        this->particles[i]->x += (noisyDist * std::cos(this->particles[i]->theta));
-        this->particles[i]->y += (noisyDist * std::sin(this->particles[i]->theta));
+        for(int i = 0; i < this->historySize; i++) {
+            this->MoveParticles(this->history[i].first, this->history[i].second);
+        }
+        this->historySize = 0;
     }
 
+    this->MoveParticles(changeDist, changeTheta);
     this->UpdatePoses();
 
-    //update accumulated pose (total movement)
-    //update accumulating x, y, theta within gmapping, what is the ideal? (no noise?) (movement since last scan)
+    this->accumulatingExpDist += changeDist;
+    this->accumulatingExpTheta += changeTheta;
 
+    this->accumulatedPoseSinceLastUpdate += std::abs(changeDist);
+    this->accumulatedPoseSinceLastUpdate += (std::abs(changeTheta) * MOTION_MODEL_ROTATION_AMP);
 
     //check time stamps and update particle history if required
     if(pointCloudTimestamp != this->lastScanTimestamp) {
@@ -112,12 +124,10 @@ void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandT
             this->particles[i]->UpdateHistory();
         }
 
-        this->lastScanExpX = this->accumulatingExpX;
-        this->lastScanExpY = this->accumulatingExpY;
+        this->lastScanExpDist = this->accumulatingExpDist;
         this->lastScanExpTheta = this->accumulatingExpTheta;
 
-        this->accumulatingExpX = 0.0;
-        this->accumulatingExpY = 0.0;
+        this->accumulatingExpDist = 0.0;
         this->accumulatingExpTheta = 0.0;
     }
 
@@ -138,6 +148,7 @@ void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandT
         this->accumulatedPoseSinceLastUpdate = 0.0;
         this->ticksSinceLastUpdate = 0;
         this->slamFinished = false;
+        this->backUpdated = false;
 
         delete this->currPacket;
         StatePacket* packet = new StatePacket();
@@ -147,8 +158,7 @@ void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandT
         packet->commandTimestamp = commandTimestamp;
         packet->pointCloudTimestamp = pointCloudTimestamp;
 
-        packet->expX = this->lastScanExpX;
-        packet->expY = this->lastScanExpY;
+        packet->expDist = this->lastScanExpDist;
         packet->expTheta = this->lastScanExpTheta;
 
         this->currPacket = packet;
@@ -157,13 +167,43 @@ void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandT
     }    
 }
 
+void Gmapping::MoveParticles(double changeDist, double changeTheta) {
+    double noisyDist = 0;
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+        if(changeDist == 0) {
+            if(changeTheta == 0) {
+                break;
+            }
+            this->particles[i]->theta += changeTheta + Utilities::GetFixedNoise(MOTION_MODEL_ROTATION_FIXED);
+            continue;
+        }
+
+        this->particles[i]->theta += (changeTheta + Utilities::GetFixedNoise(MOTION_MODEL_FORWARD_ROTATION_DEVIATION));
+        noisyDist = changeDist + Utilities::GetRandomNoise(changeDist, MOTION_MODEL_FORWARD_DEVIATION);
+
+        this->particles[i]->x += (noisyDist * std::cos(this->particles[i]->theta));
+        this->particles[i]->y += (noisyDist * std::sin(this->particles[i]->theta));
+    }
+}
+
 void Gmapping::RefineEstimates() {
     for(;;) {
         WaitForSingleObject(this->slamSemaphore, INFINITE);
 
         //add way to destroy
         //use this->currPacket
-        //build likelihood field
+
+        // vvvv steps 3, 4 vvvv
+
+        // init P(z) and P(x) matricies
+        for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+            //build likelihood field and add missing sectors (to all maps)
+            //use local search to "nudge" particle to new position
+            //check local samples and build L(k)
+        }
+
+        // ^^^^ steps 3, 4 ^^^^
+
 
         // for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
 
@@ -176,7 +216,7 @@ void Gmapping::RefineEstimates() {
         
         // }
 
-        this->UpdateMaps();
+        this->UpdateMaps(); //outside the loop, or inside?
 
         this->CreateRenderCopy(0);
         this->slamFinished = true;
@@ -187,11 +227,18 @@ void Gmapping::UpdateMaps() {
     double pi = MathUtilities::PI;
     double deltaRadian = ((pi*2) / SENSOR_MODEL_POINTS_PER_SCAN);
     double inverseCellSize = 1 / GMAPPING_GRID_CELL_SIZE;
+    if(this->currPacket->pointCloud == nullptr) {
+        return;
+    }
+
     PolarPoint** cloud = this->currPacket->pointCloud->cloud;
 
     // for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
 
     Particle* particle = this->currPacket->particles[0]; //[i]
+    if(particle->map == nullptr) {
+        return;
+    }
 
     std::unordered_set<std::pair<int, int>, pair_hash> misses;
     std::unordered_set<std::pair<int, int>, pair_hash> hits;
@@ -207,6 +254,11 @@ void Gmapping::UpdateMaps() {
     double startRadian = ((pi*2) - (deltaRadian / 2));
 
     int cloudPoint = 0;
+    int totalPoints = this->currPacket->pointCloud->cloudSize;
+
+    if(totalPoints == 0) {
+        return;
+    }
 
     for(int i = 0; i < SENSOR_MODEL_POINTS_PER_SCAN; ++i) {
         if(cloud[cloudPoint]->theta == startRadian) {
@@ -220,6 +272,9 @@ void Gmapping::UpdateMaps() {
             this->AddAffectedCells(startX, startY, endX, endY, misses, hits);
 
             cloudPoint++;
+            if(cloudPoint == totalPoints) {
+                break;
+            }
         }
 
         poseStartX += deltaX;
