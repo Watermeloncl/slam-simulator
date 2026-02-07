@@ -8,7 +8,7 @@
 #define SLAM_OPTION_EKF 0
 #define SLAM_OPTION_GMAPPING 1
 
-const int STARTING_MAP = 2;
+const int STARTING_MAP = 1;
 const int STARTING_SLAM = SLAM_OPTION_GMAPPING;
 const bool SHOW_POSSIBLE_STARTING_LOCATIONS = false;
 
@@ -44,7 +44,7 @@ const double MOTION_MODEL_ROTATION = 1.0 * MOTION_PERIOD; // 1 rad/s, or 57.2 de
 const double MOTION_MODEL_FORWARD_DEVIATION = 0.05; //0.05; //5%: hardwood floor
 const double MOTION_MODEL_FORWARD_ROTATION_DEVIATION = 0.02 * std::sqrt(MOTION_MODEL_MAX_VELOCITY / 1000); //0.02 radians per meter, hardwood floor
 const double MOTION_MODEL_ROTATION_DEVIATION = 0.02; //0.02; //2%: hardwood floor
-const double MOTION_MODEL_ROTATION_FIXED = MOTION_MODEL_ROTATION_DEVIATION * std::sqrt(MOTION_PERIOD / 1.0);
+const double MOTION_MODEL_ROTATION_FIXED = MOTION_MODEL_ROTATION_DEVIATION * std::sqrt(MOTION_PERIOD); // motion period / 1.0
 
 const double MOTION_MODEL_ROTATION_AMP = MOTION_MODEL_MAX_VELOCITY / MOTION_PERIOD;
 const double SLAM_MINIMUM_DISTANCE = SLAM_MINIMUM_DISTANCE_PERCENT * (SLAM_MINIMUM_PERIOD_COUNT * MOTION_MODEL_MAX_VELOCITY); // must move 40 mm before running full algorithm (see rotation amp)
@@ -54,10 +54,14 @@ const int GMAPPING_NUM_PARTICLES = 30;
 const double GMAPPING_GRID_CELL_SIZE = 50; // 50 mm
 const int GMAPPING_SECTOR_SIZE = 16; //each sector is 16 x 16 cells
 const int GMAPPING_SECTOR_NUM_CELLS = GMAPPING_SECTOR_SIZE*GMAPPING_SECTOR_SIZE;
+const int GMAPPING_SECTOR_MM_SIZE = GMAPPING_SECTOR_SIZE*GMAPPING_GRID_CELL_SIZE;
 const int GMAPPING_HISTORY_SIZE = SLAM_MAXIMUM_PERIOD_COUNT * 2;
 const double GMAPPING_MAX_LOG_ODDS = 10.0; // +- this much
 const double GMAPPING_LOG_ODDS_HIT = 0.85;//tmp
 const double GMAPPING_LOG_ODDS_MISS = -0.4;//tmp
+const double GMAPPING_LOG_ODDS_WALL_VALUE = 1.0; // what must log odds be to be treated as "wall" in scan matching
+const double GMAPPING_SCAN_MATCHING_PERCENT_LASERS_USED = 0.3; // 1 in every 5
+const double GMAPPING_SCAN_MATCHING_DEFAULT_SIGMA = 85.0;
 
 ///////////////////////////////////////////////
 //// Do not touch any parameters here down ////
@@ -142,5 +146,10 @@ enum class RobotCommand { //do we add none?
     LEFT,
     RIGHT
 };
+
+// Gmapping
+const double GMAPPING_INF = 1e15;
+const double GMAPPING_SCAN_MATCHING_NUDGE_JUMP = (MOTION_MODEL_FORWARD_DEVIATION * MOTION_MODEL_MAX_VELOCITY * SLAM_MINIMUM_PERIOD_COUNT) / 2.0;
+const double GMAPPING_SCAN_MATCHING_NUDGE_TWIST = (MOTION_MODEL_ROTATION * SLAM_MINIMUM_PERIOD_COUNT * MOTION_MODEL_ROTATION_DEVIATION) / 2.0;
 
 #endif

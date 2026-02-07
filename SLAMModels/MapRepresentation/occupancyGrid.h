@@ -3,6 +3,7 @@
 
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "sector.h"
 #include "..\..\config.h"
@@ -26,6 +27,10 @@ public:
 
     void AddSector(int x, int y, Sector* sector);
     void RemoveSector(int x, int y);
+    bool SectorExists(int x, int y);
+    Sector* GetSector(int x, int y);
+    void GetRowWalls(std::vector<double>& values, int sectorX, int sectorY, int row);
+
     std::unordered_map<std::pair<int, int>, Sector*, pair_hash>* GetCells();
 
     void ChangeCell(int cellX, int cellY, double value);

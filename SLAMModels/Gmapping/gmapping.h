@@ -5,20 +5,20 @@
 #include <utility>
 #include <atomic>
 #include <unordered_set>
+#include <vector>
 
 #include "..\Templates\slam.h"
 #include "particle.h"
-#include "scanMatcher.h"
 #include "..\..\Models\Lidar\pointCloud.h"
 #include "statePacket.h"
 #include "..\MapRepresentation\occupancyGrid.h"
+#include "logField.h"
+#include "..\..\World\Objects\opoint.h"
 #include "..\..\config.h"
 
 class Gmapping : public SLAMModule {
 public:
 private:
-    ScanMatcher* scanMatcher = nullptr;
-
     Particle** particles = nullptr;
 
     HANDLE slamSemaphore;
@@ -70,6 +70,17 @@ private:
 
     void UpdatePoses();
     int GetStrongestParticleIndex();
+
+    void CreateInverseSigmas(LogField* logField);
+    void GetPoints(LogField* logField, int particleIndex);
+    void GetSectorRange(LogField* logField);
+    void CreateGrid(LogField* logField);
+    void PopulateLikelihoodField(LogField* logField);
+    void DistanceTransform1D(const std::vector<double>& f, std::vector<double>& d, int n);
+    void NudgeParticle(LogField* logField);
+    void SampleParticles(LogField* logField);
+    double ScoreRelativePosition(LogField* logField, double deltaX, double deltaY, double deltaTheta);
+
 };
 
 #endif

@@ -7,24 +7,24 @@
 #include <unordered_set>
 #include <cmath>
 #include <mutex>
-
+#include <algorithm>
+#include <cfloat>
 #include <chrono>
 
 #include "gmapping.h"
+#include "logField.h"
 #include "..\Templates\slam.h"
 #include "particle.h"
-#include "scanMatcher.h"
 #include "..\..\Models\Lidar\pointCloud.h"
 #include "..\MapRepresentation\occupancyGrid.h"
 #include "..\MapRepresentation\sector.h"
 #include "..\MapRepresentation\poseRenderPacket.h"
+#include "..\..\World\Objects\opoint.h"
 #include "..\..\Utilities\utilities.h"
 #include "..\..\Utilities\mathUtilities.h"
 #include "..\..\config.h"
 
 Gmapping::Gmapping() : SLAMModule() {
-    this->scanMatcher = new ScanMatcher();
-
     this->particles = new Particle*[GMAPPING_NUM_PARTICLES];
     for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
         this->particles[i] = nullptr;
@@ -36,7 +36,6 @@ Gmapping::Gmapping() : SLAMModule() {
 }
 
 Gmapping::~Gmapping() {
-    delete this->scanMatcher;
     for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
         delete this->particles[i];
     }
@@ -133,7 +132,7 @@ void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandT
 
     (this->ticksSinceLastUpdate)++;
 
-    if(pointCloud == nullptr) {
+    if((pointCloud == nullptr) || (pointCloud->cloudSize == 0)) {
         return;
     }
 
@@ -196,12 +195,31 @@ void Gmapping::RefineEstimates() {
         // vvvv steps 3, 4 vvvv
 
         // init P(z) and P(x) matricies
+        LogField* logField = new LogField();
+        logField->cloud = this->currPacket->pointCloud->cloud;
+        logField->numPoints = this->currPacket->pointCloud->cloudSize;
+        this->CreateInverseSigmas(logField);
+
+
         for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-            //build likelihood field and add missing sectors (to all maps)
-            //use local search to "nudge" particle to new position
+            this->GetPoints(logField, i); // i
+            logField->currParticle = this->currPacket->particles[i];  // i
+
+            //num points will not be 0.
+            this->GetSectorRange(logField);
+            logField->likelihoodField.reserve(((logField->sectorMaxX)-(logField->sectorMinX)) * ((logField->sectorMaxY)-(logField->sectorMinY)) * (GMAPPING_SECTOR_SIZE*GMAPPING_SECTOR_SIZE));
+
+            this->CreateGrid(logField);
+            this->PopulateLikelihoodField(logField);
+
+            // temp nudge particles; consider a loop with cap (need to add to delta each iteration)
+            this->NudgeParticle(logField);
+            this->SampleParticles(logField);
             //check local samples and build L(k)
+            delete logField->cartesianPoints;
         }
 
+        delete logField;
         // ^^^^ steps 3, 4 ^^^^
 
 
@@ -232,67 +250,68 @@ void Gmapping::UpdateMaps() {
     }
 
     PolarPoint** cloud = this->currPacket->pointCloud->cloud;
-
-    // for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-
-    Particle* particle = this->currPacket->particles[0]; //[i]
-    if(particle->map == nullptr) {
+    if(this->currPacket->pointCloud->cloudSize == 0) {
         return;
     }
 
-    std::unordered_set<std::pair<int, int>, pair_hash> misses;
-    std::unordered_set<std::pair<int, int>, pair_hash> hits;
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
 
-    double poseStartX = particle->oldScanX;
-    double poseStartY = particle->oldScanY;
-    double poseStartTheta = particle->oldScanTheta;
+        Particle* particle = this->currPacket->particles[i];
+        if(particle->map == nullptr) {
+            continue;
+        }
 
-    double deltaX = (particle->currScanX - poseStartX) / SENSOR_MODEL_POINTS_PER_SCAN;
-    double deltaY = (particle->currScanY - poseStartY) / SENSOR_MODEL_POINTS_PER_SCAN;
-    double deltaTheta = (particle->currScanTheta - poseStartTheta) / SENSOR_MODEL_POINTS_PER_SCAN;
+        //todo combine with getPoints()?
+        std::unordered_set<std::pair<int, int>, pair_hash> misses;
+        std::unordered_set<std::pair<int, int>, pair_hash> hits;
 
-    double startRadian = ((pi*2) - (deltaRadian / 2));
+        double poseStartX = particle->oldScanX;
+        double poseStartY = particle->oldScanY;
+        double poseStartTheta = particle->oldScanTheta;
 
-    int cloudPoint = 0;
-    int totalPoints = this->currPacket->pointCloud->cloudSize;
+        double deltaX = (particle->currScanX - poseStartX) / SENSOR_MODEL_POINTS_PER_SCAN;
+        double deltaY = (particle->currScanY - poseStartY) / SENSOR_MODEL_POINTS_PER_SCAN;
+        double deltaTheta = (particle->currScanTheta - poseStartTheta) / SENSOR_MODEL_POINTS_PER_SCAN;
 
-    if(totalPoints == 0) {
-        return;
-    }
+        double startRadian = ((pi*2) - (deltaRadian / 2));
 
-    for(int i = 0; i < SENSOR_MODEL_POINTS_PER_SCAN; ++i) {
-        if(cloud[cloudPoint]->theta == startRadian) {
-            std::pair<double, double> ends = MathUtilities::PolarToCartesian(cloud[cloudPoint]->range, cloud[cloudPoint]->theta + poseStartTheta, poseStartX, poseStartY);
+        int cloudPoint = 0;
+        int totalPoints = this->currPacket->pointCloud->cloudSize;
 
-            int startX = (int)std::floor(poseStartX * inverseCellSize);
-            int startY = (int)std::floor(poseStartY * inverseCellSize);
-            int endX = (int)std::floor(ends.first * inverseCellSize);
-            int endY = (int)std::floor(ends.second * inverseCellSize);
+        for(int i = 0; i < SENSOR_MODEL_POINTS_PER_SCAN; ++i) {
+            if(cloud[cloudPoint]->theta == startRadian) {
+                std::pair<double, double> ends = MathUtilities::PolarToCartesian(cloud[cloudPoint]->range, cloud[cloudPoint]->theta + poseStartTheta, poseStartX, poseStartY);
 
-            this->AddAffectedCells(startX, startY, endX, endY, misses, hits);
+                int startX = (int)std::floor(poseStartX * inverseCellSize);
+                int startY = (int)std::floor(poseStartY * inverseCellSize);
+                int endX = (int)std::floor(ends.first * inverseCellSize);
+                int endY = (int)std::floor(ends.second * inverseCellSize);
 
-            cloudPoint++;
-            if(cloudPoint == totalPoints) {
-                break;
+                this->AddAffectedCells(startX, startY, endX, endY, misses, hits);
+
+                cloudPoint++;
+                if(cloudPoint == totalPoints) {
+                    break;
+                }
             }
+
+            poseStartX += deltaX;
+            poseStartY += deltaY;
+            poseStartTheta += deltaTheta;
+            startRadian -= deltaRadian;
         }
 
-        poseStartX += deltaX;
-        poseStartY += deltaY;
-        poseStartTheta += deltaTheta;
-        startRadian -= deltaRadian;
-    }
+        for(const std::pair<int, int>& hit : hits) {
+            if(misses.find(hit) != misses.end()) {
+                misses.erase(hit);
+            }
 
-    for(const std::pair<int, int>& hit : hits) {
-        if(misses.find(hit) != misses.end()) {
-            misses.erase(hit);
+            particle->map->ChangeCell(hit.first, hit.second, GMAPPING_LOG_ODDS_HIT);
         }
 
-        particle->map->ChangeCell(hit.first, hit.second, GMAPPING_LOG_ODDS_HIT);
-    }
-
-    for(const std::pair<int, int>& miss : misses) {
-        particle->map->ChangeCell(miss.first, miss.second, GMAPPING_LOG_ODDS_MISS);
+        for(const std::pair<int, int>& miss : misses) {
+            particle->map->ChangeCell(miss.first, miss.second, GMAPPING_LOG_ODDS_MISS);
+        }
     }
 }
 
@@ -339,7 +358,7 @@ void Gmapping::AddAffectedCells(int startX, int startY, int endX, int endY, std:
 
 void Gmapping::CreateRenderCopy(int particleIndex) {
     std::unordered_map<std::pair<int, int>, Sector*, pair_hash>* model = 
-            this->particles[particleIndex]->map->GetCells();
+            this->currPacket->particles[particleIndex]->map->GetCells();
 
     std::vector<float>* newRenderMap = new std::vector<float>();
     newRenderMap->reserve(6000);
@@ -427,4 +446,335 @@ int Gmapping::GetStrongestParticleIndex() {
     }
 
     return index;
+}
+
+void Gmapping::CreateInverseSigmas(LogField* logField) {
+    double* newSigmas = new double[logField->numPoints]();
+    std::fill_n(newSigmas, logField->numPoints, GMAPPING_SCAN_MATCHING_DEFAULT_SIGMA);
+
+    double sigmaMM;
+    for(int i = 0; i < logField->numPoints; i++) {
+        for(int tier = 0; tier < SENSOR_MODEL_ACCURACY_TIERS; tier++) {
+            if(logField->cloud[i]->range < SENSOR_MODEL_ACCURACY[tier].second) {
+                sigmaMM = (std::max)(SENSOR_MODEL_ACCURACY[tier].first * logField->cloud[i]->range, GMAPPING_GRID_CELL_SIZE / 2.0);
+                newSigmas[i] = -1.0 / (2.0*sigmaMM*sigmaMM);
+                break;
+            }
+        }
+    }
+
+    logField->inverseSigmas = newSigmas;
+}
+
+void Gmapping::GetPoints(LogField* logField, int particleIndex) {
+    logField->currParticle = this->currPacket->particles[particleIndex];
+    Particle* particle = logField->currParticle;
+    PolarPoint** cloud = this->currPacket->pointCloud->cloud;
+
+    if(logField->numPoints == 0) {
+        return;
+    }
+
+    double pi = MathUtilities::PI;
+    double deltaRadian = ((pi*2) / SENSOR_MODEL_POINTS_PER_SCAN);
+
+    double poseStartX = particle->oldScanX;
+    double poseStartY = particle->oldScanY;
+    double poseStartTheta = particle->oldScanTheta;
+
+    double deltaX = (particle->currScanX - poseStartX) / SENSOR_MODEL_POINTS_PER_SCAN;
+    double deltaY = (particle->currScanY - poseStartY) / SENSOR_MODEL_POINTS_PER_SCAN;
+    double deltaTheta = (particle->currScanTheta - poseStartTheta) / SENSOR_MODEL_POINTS_PER_SCAN;
+
+    double startRadian = ((pi*2) - (deltaRadian / 2));
+
+    int cloudPoint = 0;
+
+
+    OPoint** returnPoints = new OPoint*[logField->numPoints];
+
+    for(int i = 0; i < SENSOR_MODEL_POINTS_PER_SCAN; ++i) {
+        if(cloud[cloudPoint]->theta == startRadian) {
+            std::pair<double, double> ends = MathUtilities::PolarToCartesian(cloud[cloudPoint]->range, cloud[cloudPoint]->theta + poseStartTheta, poseStartX, poseStartY);
+
+            returnPoints[cloudPoint] = new OPoint(ends.first, ends.second);
+
+            cloudPoint++;
+            if(cloudPoint == logField->numPoints) {
+                break;
+            }
+        }
+
+        poseStartX += deltaX;
+        poseStartY += deltaY;
+        poseStartTheta += deltaTheta;
+        startRadian -= deltaRadian;
+    }
+
+    logField->cartesianPoints = returnPoints;
+}
+
+// include safety of +- 1 both x/y
+void Gmapping::GetSectorRange(LogField* logField) {
+    double minX = DBL_MAX;
+    double maxX = -DBL_MAX;
+    double minY = DBL_MAX;
+    double maxY = -DBL_MAX;
+
+    if(logField->cartesianPoints == nullptr) {
+        return;
+    }
+
+    for(int i = 0; i < this->currPacket->pointCloud->cloudSize; i++) {
+        minX = (std::min)(minX, logField->cartesianPoints[i]->x);
+        maxX = (std::max)(maxX, logField->cartesianPoints[i]->x);
+        minY = (std::min)(minY, logField->cartesianPoints[i]->y);
+        maxY = (std::max)(maxY, logField->cartesianPoints[i]->y);
+    }
+
+    double inverseCellSize = 1.0 / GMAPPING_GRID_CELL_SIZE;
+    logField->sectorMinX = ((int)std::floor(((double)std::floor(minX * inverseCellSize)) / (double)GMAPPING_SECTOR_SIZE)) - 1;
+    logField->sectorMinY = ((int)std::floor(((double)std::floor(minY * inverseCellSize)) / (double)GMAPPING_SECTOR_SIZE)) - 1;
+    logField->sectorMaxX = ((int)std::floor(((double)std::floor(maxX * inverseCellSize)) / (double)GMAPPING_SECTOR_SIZE)) + 1;
+    logField->sectorMaxY = ((int)std::floor(((double)std::floor(maxY * inverseCellSize)) / (double)GMAPPING_SECTOR_SIZE)) + 1;
+
+    logField->offsetX = logField->sectorMinX * -GMAPPING_SECTOR_MM_SIZE;
+    logField->offsetY = logField->sectorMinY * -GMAPPING_SECTOR_MM_SIZE;
+}
+
+void Gmapping::CreateGrid(LogField* logField) {
+    logField->sectorsWidth = logField->sectorMaxX - logField->sectorMinX + 1;
+    logField->sectorsHeight = logField->sectorMaxY - logField->sectorMinY + 1;
+    int totalCells = logField->sectorsWidth * logField->sectorsHeight * GMAPPING_SECTOR_SIZE * GMAPPING_SECTOR_SIZE;
+    logField->likelihoodField.assign(totalCells, GMAPPING_INF);
+
+    int lfIndex = 0;
+    int cellIndex;
+
+    for(int y = logField->sectorMinY; y <= logField->sectorMaxY; ++y) {
+        std::vector<Sector*> rowSectors;
+        rowSectors.reserve(logField->sectorsWidth);
+
+        for(int x = logField->sectorMinX; x <= logField->sectorMaxX; ++x) {
+            rowSectors.push_back(logField->currParticle->map->GetSector(x, y));
+        }
+
+        for(int row = 0; row < GMAPPING_SECTOR_SIZE; row++) {
+            for(Sector* currSector : rowSectors) {
+                if(currSector == nullptr) {
+                    lfIndex += GMAPPING_SECTOR_SIZE;
+                } else {
+                    cellIndex = row * GMAPPING_SECTOR_SIZE;
+                    for(int i = 0; i < GMAPPING_SECTOR_SIZE; i++) {
+                        if(currSector->cells[cellIndex] >= GMAPPING_LOG_ODDS_WALL_VALUE) {
+                            logField->likelihoodField[lfIndex] = 0;
+                        }
+                        cellIndex++;
+                        lfIndex++;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Euclidean Distance Transform using Felzenszwalb-Huttenlocher (FH) algorithm
+// Do 1D distance transform first on rows, then on cols. Expects a grid of all INF except obstacle cells, which have 0
+// void Gmapping::PopulateLikelihoodField(std::vector<double>& grid, int width, int height) {
+// this->PopulateLikelihoodField(likelihoodField, (sectorMaxX - sectorMinX + 1) * GMAPPING_SECTOR_SIZE, (sectorMaxY - sectorMinY + 1) * GMAPPING_SECTOR_SIZE);
+
+void Gmapping::PopulateLikelihoodField(LogField* logField) {
+    // truncate distances?
+    logField->cellsWidth = logField->sectorsWidth * GMAPPING_SECTOR_SIZE;
+    logField->cellsHeight = logField->sectorsHeight * GMAPPING_SECTOR_SIZE;
+    int width = logField->cellsWidth;
+    int height = logField->cellsHeight;
+
+    // Pass 1: Rows
+    std::vector<double> row(width);
+    std::vector<double> resultRows(width);
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            row[x] = logField->likelihoodField[(y * width) + x];
+        }
+        
+        this->DistanceTransform1D(row, resultRows, width);
+        
+        for (int x = 0; x < width; ++x) {
+            logField->likelihoodField[(y * width) + x] = resultRows[x];
+        }
+    }
+
+    double cellSizeSquared = GMAPPING_GRID_CELL_SIZE*GMAPPING_GRID_CELL_SIZE;
+
+    // Pass 2: Columns
+    std::vector<double> col(height);
+    std::vector<double> resultCols(height);
+    for (int x = 0; x < width; ++x) {
+        for (int y = 0; y < height; ++y) {
+            col[y] = logField->likelihoodField[(y * width) + x];
+        }
+        
+        this->DistanceTransform1D(col, resultCols, height);
+        
+        for (int y = 0; y < height; ++y) {
+            logField->likelihoodField[(y * width) + x] = resultCols[y] * cellSizeSquared;
+        }
+    }
+}
+
+// Get's the lower envelope of a set of parabolas, each representing the closeness of that index's obstacle
+// inDists represents distances gained during previous pass
+// result is output
+// n is size of arrays
+void Gmapping::DistanceTransform1D(const std::vector<double>& inDists, std::vector<double>& result, int n) {
+    std::vector<int> v(n);      // locations of parabolas in lower envelope
+    std::vector<double> z(n + 1); // locations of boundaries between parabolas, one extra for upper bound
+    
+    int k = 0; // parabola num
+
+    v[0] = 0; // init 
+    z[0] = -GMAPPING_INF; // init starting lower envelope
+    z[1] = +GMAPPING_INF;
+
+    // intersection of two parabolas, s = (f(q) + q^2 - (f(p) + p^2)) / (2q - 2p)
+    for (int q = 1; q < n; ++q) {
+        // Calculate intersection of parabola q and v[k]
+        double s = ((inDists[q] + q * q) - (inDists[v[k]] + v[k] * v[k])) / (2.0 * q - 2.0 * v[k]);
+        
+        while (s <= z[k]) {
+            k--; // "pop off" occluded parabolas, or parabolas not involved in lower envelope
+            s = ((inDists[q] + q*q) - (inDists[v[k]] + (v[k]*v[k]))) / ((2.0*q) - (2.0*v[k]));
+        }
+        
+        k++;
+        v[k] = q;
+        z[k] = s;
+        z[k + 1] = +GMAPPING_INF;
+    }
+
+    // Fill in the distance values from the lower envelope
+    int j = 0;
+    for (int q = 0; q < n; ++q) {
+        while (z[j + 1] < q) {
+            j++;
+        }
+        result[q] = ((q - v[j])*(q - v[j])) + inDists[v[j]];
+    }
+}
+
+void Gmapping::NudgeParticle(LogField* logField) {
+
+    // original, +x, -x, +y, -y, +t, -t
+    std::vector<double> scores(7);
+    scores[0] = this->ScoreRelativePosition(logField, 0, 0, 0);
+    scores[1] = this->ScoreRelativePosition(logField, GMAPPING_SCAN_MATCHING_NUDGE_JUMP, 0, 0);
+    scores[2] = this->ScoreRelativePosition(logField, -GMAPPING_SCAN_MATCHING_NUDGE_JUMP, 0, 0);
+    scores[3] = this->ScoreRelativePosition(logField, 0, GMAPPING_SCAN_MATCHING_NUDGE_JUMP, 0);
+    scores[4] = this->ScoreRelativePosition(logField, 0, -GMAPPING_SCAN_MATCHING_NUDGE_JUMP, 0);
+    scores[5] = this->ScoreRelativePosition(logField, 0, 0, GMAPPING_SCAN_MATCHING_NUDGE_TWIST);
+    scores[6] = this->ScoreRelativePosition(logField, 0, 0, -GMAPPING_SCAN_MATCHING_NUDGE_TWIST);
+
+    int index = 0;
+    double currMax = scores[0];
+    for(int i = 1; i < 7; i++) {
+        if(scores[i] > currMax) {
+            currMax = scores[i];
+            index = i;
+        }
+    }
+
+    switch(index) {
+        case 0:
+            break;
+        case 1:
+            logField->currParticle->x += GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
+            break;
+        case 2:
+            logField->currParticle->x -= GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
+            break;
+        case 3:
+            logField->currParticle->y += GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
+            break;
+        case 4:
+            logField->currParticle->y -= GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
+            break;
+        case 5:
+            logField->currParticle->theta += GMAPPING_SCAN_MATCHING_NUDGE_TWIST;
+            break;
+        default:
+            logField->currParticle->theta -= GMAPPING_SCAN_MATCHING_NUDGE_TWIST;
+            break;
+    }
+}
+
+void Gmapping::SampleParticles(LogField* logField) {
+    //calc P(Xt | Xt-1, u)
+    //todo
+
+    //calc P(Zt | Xt, m)
+
+    double tTerms[3] = {0, GMAPPING_SCAN_MATCHING_NUDGE_JUMP, -GMAPPING_SCAN_MATCHING_NUDGE_JUMP};
+    double rTerms[3] = {0, GMAPPING_SCAN_MATCHING_NUDGE_TWIST, -GMAPPING_SCAN_MATCHING_NUDGE_TWIST};
+    // double sigmaInv = -1.0 / (2.0*80*80);
+    double maximum = -DBL_MAX;
+    std::vector<double> scanScore(27);
+    int index;
+    for(int i = 0; i < 3; i++) { // theta
+        for(int j = 0; j < 3; j++) { // y
+            for(int k = 0; k < 3; k++) { // x
+                index = (i * 9) + (j * 3) + k;
+                scanScore[index] = this->ScoreRelativePosition(logField, tTerms[k], tTerms[j], rTerms[i]);
+                // scanScore[index] *= sigmaInv;
+                maximum = (std::max)(maximum, scanScore[index]);
+            }
+        }
+    }
+
+    //normalize; bring probabilities into calculatable range
+    // std::cout << "scores: ";
+    for(int i = 0; i < 27; i++) {
+        // std::cout << "before: " << scanScore[i] << " after: ";
+        scanScore[i] -= maximum;
+        // std::cout << scanScore[i] << " most after: ";
+        scanScore[i] = std::exp(scanScore[i]);
+        // std::cout << scanScore[i] << std::endl;
+    }
+    // std::cout << std::endl << std::endl;
+}
+
+
+//todo: how to deal with a point if it goes off the grid? should we worry about that?
+double Gmapping::ScoreRelativePosition(LogField* logField, double deltaX, double deltaY, double deltaTheta) {
+    //given a set of points and a set of changes,
+    //   alter all the points in the cloud accordingly and count up the score
+
+    // based on mahalanobis distance: e^-(d^2 / (2*sigma^2))
+    // the log of that can be added together to get the same idea. Just looking for direction
+
+    double score = 0;
+    double cosTheta = std::cos(deltaTheta);
+    double sinTheta = std::sin(deltaTheta);
+    double x, y, tempX;
+    int invScanPercent = (int)(1.0 / GMAPPING_SCAN_MATCHING_PERCENT_LASERS_USED);
+    double invCellSize = 1.0 / GMAPPING_GRID_CELL_SIZE;
+    for(int i = 0; i < logField->numPoints; i += invScanPercent) {
+
+        x = (logField->cartesianPoints[i]->x) + deltaX;
+        y = (logField->cartesianPoints[i]->y) + deltaY;
+
+        if(deltaTheta) {
+            tempX = x;
+            x = tempX*cosTheta - y*sinTheta;
+            y = tempX*sinTheta + y*cosTheta;
+        }
+
+        //convert to likelihood field from cartesian world
+        x += logField->offsetX;
+        y += logField->offsetY;
+
+        score += logField->likelihoodField[(int)((std::floor(y * invCellSize)*(logField->cellsWidth)) + std::floor(x * invCellSize))] * logField->inverseSigmas[i];
+    }
+
+    return score;
 }
