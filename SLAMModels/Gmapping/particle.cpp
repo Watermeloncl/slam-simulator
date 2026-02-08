@@ -26,6 +26,10 @@ Particle* Particle::Copy() {
     newParticle->y = this->y;
     newParticle->theta = this->theta;
 
+    newParticle->nudgeX = this->nudgeX;
+    newParticle->nudgeY = this->nudgeY;
+    newParticle->nudgeTheta = this->nudgeTheta;
+    
     newParticle->accumulatedPose = this->accumulatedPose;
 
     newParticle->weight = this->weight;
@@ -42,4 +46,14 @@ void Particle::UpdateHistory() {
     this->currScanX = this->x;
     this->currScanY = this->y;
     this->currScanTheta = this->theta;
+}
+
+void Particle::AddNudges() {
+    this->x += this->nudgeX;
+    this->y += this->nudgeY;
+    this->theta += this->nudgeTheta;
+
+    this->nudgeX = 0.0;
+    this->nudgeY = 0.0;
+    this->nudgeTheta = 0.0;
 }

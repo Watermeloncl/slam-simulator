@@ -200,7 +200,6 @@ void Gmapping::RefineEstimates() {
         logField->numPoints = this->currPacket->pointCloud->cloudSize;
         this->CreateInverseSigmas(logField);
 
-
         for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
             this->GetPoints(logField, i); // i
             logField->currParticle = this->currPacket->particles[i];  // i
@@ -222,6 +221,9 @@ void Gmapping::RefineEstimates() {
         delete logField;
         // ^^^^ steps 3, 4 ^^^^
 
+        for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+            this->currPacket->particles[i]->AddNudges();
+        }
 
         // for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
 
@@ -233,6 +235,7 @@ void Gmapping::RefineEstimates() {
             //  after resample, reset weights
         
         // }
+
 
         this->UpdateMaps(); //outside the loop, or inside?
 
@@ -688,61 +691,86 @@ void Gmapping::NudgeParticle(LogField* logField) {
         case 0:
             break;
         case 1:
-            logField->currParticle->x += GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
+            logField->currParticle->nudgeX += GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
             break;
         case 2:
-            logField->currParticle->x -= GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
+            logField->currParticle->nudgeX -= GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
             break;
         case 3:
-            logField->currParticle->y += GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
+            logField->currParticle->nudgeY += GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
             break;
         case 4:
-            logField->currParticle->y -= GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
+            logField->currParticle->nudgeY -= GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
             break;
         case 5:
-            logField->currParticle->theta += GMAPPING_SCAN_MATCHING_NUDGE_TWIST;
+            logField->currParticle->nudgeTheta += GMAPPING_SCAN_MATCHING_NUDGE_TWIST;
             break;
         default:
-            logField->currParticle->theta -= GMAPPING_SCAN_MATCHING_NUDGE_TWIST;
+            logField->currParticle->nudgeTheta -= GMAPPING_SCAN_MATCHING_NUDGE_TWIST;
             break;
     }
 }
 
 void Gmapping::SampleParticles(LogField* logField) {
-    //calc P(Xt | Xt-1, u)
-    //todo
-
-    //calc P(Zt | Xt, m)
-
+    //neighbors to sample
     double tTerms[3] = {0, GMAPPING_SCAN_MATCHING_NUDGE_JUMP, -GMAPPING_SCAN_MATCHING_NUDGE_JUMP};
     double rTerms[3] = {0, GMAPPING_SCAN_MATCHING_NUDGE_TWIST, -GMAPPING_SCAN_MATCHING_NUDGE_TWIST};
-    // double sigmaInv = -1.0 / (2.0*80*80);
-    double maximum = -DBL_MAX;
+
+    //calc P(Xt | Xt-1, u)
+    //calc P(Zt | Xt, m)
+    double maxPower = -DBL_MAX;
+    std::vector<double> motionScore(27);
     std::vector<double> scanScore(27);
     int index;
     for(int i = 0; i < 3; i++) { // theta
         for(int j = 0; j < 3; j++) { // y
             for(int k = 0; k < 3; k++) { // x
                 index = (i * 9) + (j * 3) + k;
+                motionScore[index] = this->ScoreParticlePose(logField, tTerms[k], tTerms[j], rTerms[i]);
                 scanScore[index] = this->ScoreRelativePosition(logField, tTerms[k], tTerms[j], rTerms[i]);
-                // scanScore[index] *= sigmaInv;
-                maximum = (std::max)(maximum, scanScore[index]);
+                maxPower = (std::max)(maxPower, scanScore[index]);
             }
         }
     }
 
-    //normalize; bring probabilities into calculatable range
-    // std::cout << "scores: ";
+    //sorta normalize; brings probabilities into calculatable range
+    std::cout << "====================================scores================================" << std::endl;
     for(int i = 0; i < 27; i++) {
-        // std::cout << "before: " << scanScore[i] << " after: ";
-        scanScore[i] -= maximum;
-        // std::cout << scanScore[i] << " most after: ";
+        scanScore[i] -= maxPower;
         scanScore[i] = std::exp(scanScore[i]);
-        // std::cout << scanScore[i] << std::endl;
+        std::cout << "neighbor score: " << scanScore[i] << " ";
+        motionScore[i] = std::exp(motionScore[i]);
+        std::cout << motionScore[i] << std::endl;
     }
-    // std::cout << std::endl << std::endl;
+
+    //do we need to sorta normalize motion probabilities?
+
+
+    //calculate L(k)
 }
 
+//TODO might need to change motion_model_forward_deviation
+//TODO doesn't work for turning yet (gets nan)
+double Gmapping::ScoreParticlePose(LogField* logField, double deltaX, double deltaY, double deltaTheta) {
+    // based on mahalanobis distance: e^-(diff^2 / 2*sigma^2)
+    double xDiff = logField->currParticle->currScanX - logField->currParticle->oldScanX + deltaX + logField->currParticle->nudgeX;
+    double yDiff = logField->currParticle->currScanY - logField->currParticle->oldScanY + deltaY + logField->currParticle->nudgeY;
+    double deltaDist = std::sqrt(xDiff*xDiff + yDiff*yDiff);
+
+    double distDiff = deltaDist - this->currPacket->expDist;
+
+    double thetaTravelled = logField->currParticle->currScanTheta - logField->currParticle->oldScanTheta + deltaTheta + logField->currParticle->nudgeTheta;
+    double thetaDiff = thetaTravelled - (this->currPacket->expTheta);
+    double thetaError = std::atan2(std::sin(thetaDiff), std::cos(thetaDiff));
+
+    double distSigma = deltaDist * MOTION_MODEL_FORWARD_DEVIATION;
+
+    double sigmaRotation = (thetaTravelled * MOTION_MODEL_ROTATION);
+    double sigmaVeer = (deltaDist * MOTION_MODEL_FORWARD_ROTATION_DEVIATION);
+    double thetaSigma = std::sqrt(sigmaRotation*sigmaRotation + sigmaVeer*sigmaVeer + MOTION_MODEL_BASE_DEVIATION*MOTION_MODEL_BASE_DEVIATION);
+
+    return -0.5 * (((distDiff*distDiff) / (distSigma*distSigma)) + ((thetaError*thetaError) / (thetaSigma*thetaSigma)));
+}
 
 //todo: how to deal with a point if it goes off the grid? should we worry about that?
 double Gmapping::ScoreRelativePosition(LogField* logField, double deltaX, double deltaY, double deltaTheta) {

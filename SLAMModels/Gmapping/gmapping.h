@@ -79,6 +79,7 @@ private:
     void DistanceTransform1D(const std::vector<double>& f, std::vector<double>& d, int n);
     void NudgeParticle(LogField* logField);
     void SampleParticles(LogField* logField);
+    double ScoreParticlePose(LogField* logField, double deltaX, double deltaY, double deltaTheta);
     double ScoreRelativePosition(LogField* logField, double deltaX, double deltaY, double deltaTheta);
 
 };

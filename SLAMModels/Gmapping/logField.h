@@ -31,6 +31,9 @@ public:
 
     int offsetX = 0.0;
     int offsetY = 0.0;
+
+    double expDist = 0.0;
+    double expTheta = 0.0;
 };
 
 #endif

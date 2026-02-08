@@ -45,6 +45,7 @@ const double MOTION_MODEL_FORWARD_DEVIATION = 0.05; //0.05; //5%: hardwood floor
 const double MOTION_MODEL_FORWARD_ROTATION_DEVIATION = 0.02 * std::sqrt(MOTION_MODEL_MAX_VELOCITY / 1000); //0.02 radians per meter, hardwood floor
 const double MOTION_MODEL_ROTATION_DEVIATION = 0.02; //0.02; //2%: hardwood floor
 const double MOTION_MODEL_ROTATION_FIXED = MOTION_MODEL_ROTATION_DEVIATION * std::sqrt(MOTION_PERIOD); // motion period / 1.0
+const double MOTION_MODEL_BASE_DEVIATION = 0.001;
 
 const double MOTION_MODEL_ROTATION_AMP = MOTION_MODEL_MAX_VELOCITY / MOTION_PERIOD;
 const double SLAM_MINIMUM_DISTANCE = SLAM_MINIMUM_DISTANCE_PERCENT * (SLAM_MINIMUM_PERIOD_COUNT * MOTION_MODEL_MAX_VELOCITY); // must move 40 mm before running full algorithm (see rotation amp)
