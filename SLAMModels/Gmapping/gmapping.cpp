@@ -94,6 +94,7 @@ void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandT
             this->particles[i]->x = this->currPacket->particles[i]->x;
             this->particles[i]->y = this->currPacket->particles[i]->y;
             this->particles[i]->theta = this->currPacket->particles[i]->theta;
+            this->particles[i]->weight = this->currPacket->particles[i]->weight;
             //TODO this is where old particles need to convert to new ones (resampled)
         }
 
@@ -192,9 +193,8 @@ void Gmapping::RefineEstimates() {
         //add way to destroy
         //use this->currPacket
 
-        // vvvv steps 3, 4 vvvv
+        // vvvv steps 3-7 vvvv
 
-        // init P(z) and P(x) matricies
         LogField* logField = new LogField();
         logField->cloud = this->currPacket->pointCloud->cloud;
         logField->numPoints = this->currPacket->pointCloud->cloudSize;
@@ -211,19 +211,35 @@ void Gmapping::RefineEstimates() {
             this->CreateGrid(logField);
             this->PopulateLikelihoodField(logField);
 
-            // temp nudge particles; consider a loop with cap (need to add to delta each iteration)
             this->NudgeParticle(logField);
-            this->SampleParticles(logField);
+
             //check local samples and build L(k)
+            this->SampleParticles(logField);
+
             delete logField->cartesianPoints;
         }
 
         delete logField;
-        // ^^^^ steps 3, 4 ^^^^
+        // ^^^^ steps 3-7 ^^^^
 
+        // vvvv step 8 (-9) vvvv
+        double totalWeight = 0.0;
         for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-            this->currPacket->particles[i]->AddNudges();
+            totalWeight += this->currPacket->particles[i]->weight;
         }
+
+        double neffWeight = 0.0;
+        for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+            this->currPacket->particles[i]->weight /= totalWeight;
+            neffWeight += (this->currPacket->particles[i]->weight)*(this->currPacket->particles[i]->weight);
+        }
+
+        //particle efficiency
+        // Neff = 1 / ( sum(final_weights^2))
+        double neff = 1.0 / neffWeight;
+        // ^^^^ step 8 (-9) ^^^^
+
+
 
         // for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
 
@@ -239,7 +255,7 @@ void Gmapping::RefineEstimates() {
 
         this->UpdateMaps(); //outside the loop, or inside?
 
-        this->CreateRenderCopy(0);
+        this->CreateRenderCopy();
         this->slamFinished = true;
     }
 }
@@ -359,9 +375,10 @@ void Gmapping::AddAffectedCells(int startX, int startY, int endX, int endY, std:
     }
 }
 
-void Gmapping::CreateRenderCopy(int particleIndex) {
+void Gmapping::CreateRenderCopy() {
+    int strongestIndex = this->GetStrongestParticleIndex();
     std::unordered_map<std::pair<int, int>, Sector*, pair_hash>* model = 
-            this->currPacket->particles[particleIndex]->map->GetCells();
+            this->currPacket->particles[strongestIndex]->map->GetCells();
 
     std::vector<float>* newRenderMap = new std::vector<float>();
     newRenderMap->reserve(6000);
@@ -583,9 +600,6 @@ void Gmapping::CreateGrid(LogField* logField) {
 
 // Euclidean Distance Transform using Felzenszwalb-Huttenlocher (FH) algorithm
 // Do 1D distance transform first on rows, then on cols. Expects a grid of all INF except obstacle cells, which have 0
-// void Gmapping::PopulateLikelihoodField(std::vector<double>& grid, int width, int height) {
-// this->PopulateLikelihoodField(likelihoodField, (sectorMaxX - sectorMinX + 1) * GMAPPING_SECTOR_SIZE, (sectorMaxY - sectorMinY + 1) * GMAPPING_SECTOR_SIZE);
-
 void Gmapping::PopulateLikelihoodField(LogField* logField) {
     // truncate distances?
     logField->cellsWidth = logField->sectorsWidth * GMAPPING_SECTOR_SIZE;
@@ -621,7 +635,7 @@ void Gmapping::PopulateLikelihoodField(LogField* logField) {
         this->DistanceTransform1D(col, resultCols, height);
         
         for (int y = 0; y < height; ++y) {
-            logField->likelihoodField[(y * width) + x] = resultCols[y] * cellSizeSquared;
+            logField->likelihoodField[(y * width) + x] = (std::min)(resultCols[y] * cellSizeSquared, GMAPPING_SCAN_MATCHING_MAX_DIST);
         }
     }
 }
@@ -670,44 +684,50 @@ void Gmapping::NudgeParticle(LogField* logField) {
 
     // original, +x, -x, +y, -y, +t, -t
     std::vector<double> scores(7);
-    scores[0] = this->ScoreRelativePosition(logField, 0, 0, 0);
-    scores[1] = this->ScoreRelativePosition(logField, GMAPPING_SCAN_MATCHING_NUDGE_JUMP, 0, 0);
-    scores[2] = this->ScoreRelativePosition(logField, -GMAPPING_SCAN_MATCHING_NUDGE_JUMP, 0, 0);
-    scores[3] = this->ScoreRelativePosition(logField, 0, GMAPPING_SCAN_MATCHING_NUDGE_JUMP, 0);
-    scores[4] = this->ScoreRelativePosition(logField, 0, -GMAPPING_SCAN_MATCHING_NUDGE_JUMP, 0);
-    scores[5] = this->ScoreRelativePosition(logField, 0, 0, GMAPPING_SCAN_MATCHING_NUDGE_TWIST);
-    scores[6] = this->ScoreRelativePosition(logField, 0, 0, -GMAPPING_SCAN_MATCHING_NUDGE_TWIST);
+    for(int round = 0; round < GMAPPING_SCAN_MATCHING_MAX_NUDGES; round++) {
+        scores[0] = this->ScoreRelativePosition(logField, 0, 0, 0);
+        scores[1] = this->ScoreRelativePosition(logField, GMAPPING_SCAN_MATCHING_NUDGE_JUMP, 0, 0);
+        scores[2] = this->ScoreRelativePosition(logField, -GMAPPING_SCAN_MATCHING_NUDGE_JUMP, 0, 0);
+        scores[3] = this->ScoreRelativePosition(logField, 0, GMAPPING_SCAN_MATCHING_NUDGE_JUMP, 0);
+        scores[4] = this->ScoreRelativePosition(logField, 0, -GMAPPING_SCAN_MATCHING_NUDGE_JUMP, 0);
+        scores[5] = this->ScoreRelativePosition(logField, 0, 0, GMAPPING_SCAN_MATCHING_NUDGE_TWIST);
+        scores[6] = this->ScoreRelativePosition(logField, 0, 0, -GMAPPING_SCAN_MATCHING_NUDGE_TWIST);
 
-    int index = 0;
-    double currMax = scores[0];
-    for(int i = 1; i < 7; i++) {
-        if(scores[i] > currMax) {
-            currMax = scores[i];
-            index = i;
+        int index = 0;
+        double currMax = scores[0];
+        for(int i = 1; i < 7; i++) {
+            if(scores[i] > currMax) {
+                currMax = scores[i];
+                index = i;
+            }
         }
-    }
 
-    switch(index) {
-        case 0:
+        if(index == 0) {
             break;
-        case 1:
-            logField->currParticle->nudgeX += GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
-            break;
-        case 2:
-            logField->currParticle->nudgeX -= GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
-            break;
-        case 3:
-            logField->currParticle->nudgeY += GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
-            break;
-        case 4:
-            logField->currParticle->nudgeY -= GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
-            break;
-        case 5:
-            logField->currParticle->nudgeTheta += GMAPPING_SCAN_MATCHING_NUDGE_TWIST;
-            break;
-        default:
-            logField->currParticle->nudgeTheta -= GMAPPING_SCAN_MATCHING_NUDGE_TWIST;
-            break;
+        }
+
+        switch(index) {
+            case 0:
+                break;
+            case 1:
+                logField->currParticle->nudgeX += GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
+                break;
+            case 2:
+                logField->currParticle->nudgeX -= GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
+                break;
+            case 3:
+                logField->currParticle->nudgeY += GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
+                break;
+            case 4:
+                logField->currParticle->nudgeY -= GMAPPING_SCAN_MATCHING_NUDGE_JUMP;
+                break;
+            case 5:
+                logField->currParticle->nudgeTheta += GMAPPING_SCAN_MATCHING_NUDGE_TWIST;
+                break;
+            default:
+                logField->currParticle->nudgeTheta -= GMAPPING_SCAN_MATCHING_NUDGE_TWIST;
+                break;
+        }
     }
 }
 
@@ -733,20 +753,45 @@ void Gmapping::SampleParticles(LogField* logField) {
         }
     }
 
-    //sorta normalize; brings probabilities into calculatable range
-    std::cout << "====================================scores================================" << std::endl;
+    //sorta normalize with maxPower; brings probabilities into calculatable range
     for(int i = 0; i < 27; i++) {
         scanScore[i] -= maxPower;
-        scanScore[i] = std::exp(scanScore[i]);
-        std::cout << "neighbor score: " << scanScore[i] << " ";
-        motionScore[i] = std::exp(motionScore[i]);
-        std::cout << motionScore[i] << std::endl;
     }
 
-    //do we need to sorta normalize motion probabilities?
+    double startTheta = logField->currParticle->theta + logField->currParticle->nudgeTheta;
+    
+    double totalWeight = 0.0;
+    double sampleWeight = 0.0;
+    double totalX = 0.0;
+    double totalY = 0.0;
+    double totalSinTheta = 0.0;
+    double totalCosTheta = 0.0;
 
+    for(int i = 0; i < 3; i++) { // theta
+        for(int j = 0; j < 3; j++) { // y
+            for(int k = 0; k < 3; k++) { // x
+                index = (i * 9) + (j * 3) + k;
 
-    //calculate L(k)
+                scanScore[index] = std::exp(scanScore[index]);
+                motionScore[index] = std::exp(motionScore[index]);
+
+                sampleWeight = scanScore[index]*motionScore[index];
+                totalWeight += sampleWeight;
+
+                totalX += sampleWeight * (logField->currParticle->x + logField->currParticle->nudgeX + tTerms[k]);
+                totalY += sampleWeight * (logField->currParticle->y + logField->currParticle->nudgeY + tTerms[j]);
+
+                totalSinTheta += sampleWeight * std::sin(startTheta + rTerms[i]);
+                totalCosTheta += sampleWeight * std::cos(startTheta + rTerms[i]);
+            }
+        }
+    }
+
+    logField->currParticle->x = totalX / totalWeight;
+    logField->currParticle->y = totalY / totalWeight;
+    logField->currParticle->theta = std::atan2(totalSinTheta, totalCosTheta);
+
+    logField->currParticle->weight *= totalWeight;
 }
 
 //TODO might need to change motion_model_forward_deviation
@@ -781,15 +826,16 @@ double Gmapping::ScoreRelativePosition(LogField* logField, double deltaX, double
     // the log of that can be added together to get the same idea. Just looking for direction
 
     double score = 0;
-    double cosTheta = std::cos(deltaTheta);
-    double sinTheta = std::sin(deltaTheta);
+    double cosTheta = std::cos(deltaTheta + logField->currParticle->nudgeTheta);
+    double sinTheta = std::sin(deltaTheta + logField->currParticle->nudgeTheta);
     double x, y, tempX;
     int invScanPercent = (int)(1.0 / GMAPPING_SCAN_MATCHING_PERCENT_LASERS_USED);
     double invCellSize = 1.0 / GMAPPING_GRID_CELL_SIZE;
     for(int i = 0; i < logField->numPoints; i += invScanPercent) {
 
-        x = (logField->cartesianPoints[i]->x) + deltaX;
-        y = (logField->cartesianPoints[i]->y) + deltaY;
+        //add nudges?
+        x = (logField->cartesianPoints[i]->x) + deltaX + logField->currParticle->nudgeX;
+        y = (logField->cartesianPoints[i]->y) + deltaY + logField->currParticle->nudgeY;
 
         if(deltaTheta) {
             tempX = x;

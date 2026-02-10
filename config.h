@@ -63,6 +63,9 @@ const double GMAPPING_LOG_ODDS_MISS = -0.4;//tmp
 const double GMAPPING_LOG_ODDS_WALL_VALUE = 1.0; // what must log odds be to be treated as "wall" in scan matching
 const double GMAPPING_SCAN_MATCHING_PERCENT_LASERS_USED = 0.3; // 1 in every 5
 const double GMAPPING_SCAN_MATCHING_DEFAULT_SIGMA = 85.0;
+const double GMAPPING_SCAN_MATCHING_MAX_DIST = 10 * GMAPPING_GRID_CELL_SIZE*GMAPPING_GRID_CELL_SIZE; // number of cells max distance as "matched"
+const double GMAPPING_SCAN_MATCHING_MAX_NUDGES = 1; // num times it will try to "nudge" a particle (unless a nudge fails)
+const double GMAPPING_MINIMUM_NEFF = 1.0 / 3.0; // what minimum percentage of particles must be "pulling their weight" at any given time
 
 ///////////////////////////////////////////////
 //// Do not touch any parameters here down ////

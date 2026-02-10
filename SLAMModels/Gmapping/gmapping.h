@@ -65,7 +65,7 @@ private:
     void UpdateMaps();
     void AddAffectedCells(int startX, int startY, int endX, int endY, std::unordered_set<std::pair<int, int>, pair_hash>& misses, std::unordered_set<std::pair<int, int>, pair_hash>& hits);
 
-    void CreateRenderCopy(int particleIndex);
+    void CreateRenderCopy();
     std::pair<float, float> XYToDips(double x, double y);
 
     void UpdatePoses();
