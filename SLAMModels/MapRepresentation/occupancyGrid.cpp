@@ -39,6 +39,33 @@ Sector* OccupancyGrid::GetSector(int x, int y) {
     }
 }
 
+void OccupancyGrid::ClearSectors() {
+    for(const std::pair<std::pair<int, int>, Sector*> match : this->grid) {
+        match.second->RemoveReference();
+    }
+
+    this->grid.clear();
+}
+
+std::vector<std::pair<std::pair<int, int>, Sector*>> OccupancyGrid::GetSectors() {
+    std::vector<std::pair<std::pair<int, int>, Sector*>> references;
+    references.reserve(this->grid.size());
+
+    for(const std::pair<const std::pair<int, int>, Sector*>& match : this->grid) {
+        references.push_back({{match.first.first, match.first.second}, match.second});
+    }
+
+    return references;
+}
+
+// make sure previous sectors are already cleared!
+void OccupancyGrid::FillSectors(const std::vector<std::pair<std::pair<int, int>, Sector*>>& incomingSectors) {
+    for(const std::pair<std::pair<int, int>, Sector*>& match : incomingSectors) {
+        this->grid[{match.first.first, match.first.second}] = match.second;
+        match.second->AddReference();
+    }
+}
+
 void OccupancyGrid::GetRowWalls(std::vector<double>& values, int sectorX, int sectorY, int row) {
     values.clear();
 
@@ -87,9 +114,11 @@ void OccupancyGrid::ChangeCell(int cellX, int cellY, double value) {
         newSector->ChangeCellValue(cellX % GMAPPING_SECTOR_SIZE, cellY % GMAPPING_SECTOR_SIZE, value);
         this->RemoveSector(sectorX, sectorY);
         oldSector->RemoveReference();
+        this->AddSector(sectorX, sectorY, newSector); //this line was missing?
     }
 }
 
 std::unordered_map<std::pair<int, int>, Sector*, pair_hash>* OccupancyGrid::GetCells() {
     return &(this->grid);
 }
+

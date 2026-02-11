@@ -47,13 +47,3 @@ void Particle::UpdateHistory() {
     this->currScanY = this->y;
     this->currScanTheta = this->theta;
 }
-
-void Particle::AddNudges() {
-    this->x += this->nudgeX;
-    this->y += this->nudgeY;
-    this->theta += this->nudgeTheta;
-
-    this->nudgeX = 0.0;
-    this->nudgeY = 0.0;
-    this->nudgeTheta = 0.0;
-}

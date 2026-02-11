@@ -29,11 +29,17 @@ public:
     void RemoveSector(int x, int y);
     bool SectorExists(int x, int y);
     Sector* GetSector(int x, int y);
+
+    void ClearSectors();
+    std::vector<std::pair<std::pair<int, int>, Sector*>> GetSectors();
+    void FillSectors(const std::vector<std::pair<std::pair<int, int>, Sector*>>& incomingSectors);
+
     void GetRowWalls(std::vector<double>& values, int sectorX, int sectorY, int row);
 
     std::unordered_map<std::pair<int, int>, Sector*, pair_hash>* GetCells();
 
     void ChangeCell(int cellX, int cellY, double value);
+
 
 private:
     std::unordered_map<std::pair<int, int>, Sector*, pair_hash> grid;

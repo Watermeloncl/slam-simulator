@@ -24,7 +24,10 @@ private:
     HANDLE slamSemaphore;
     std::thread slamThread;
     std::atomic<bool> slamFinished;
+    std::atomic<bool> refreshParticles;
     bool backUpdated = true;
+
+    int* particlesToRefresh = nullptr;
 
     std::pair<double, double>* history;
     int historySize = 0;
@@ -69,7 +72,7 @@ private:
     std::pair<float, float> XYToDips(double x, double y);
 
     void UpdatePoses();
-    int GetStrongestParticleIndex();
+    int GetStrongestParticleIndex(Particle** particles);
 
     void CreateInverseSigmas(LogField* logField);
     void GetPoints(LogField* logField, int particleIndex);
@@ -82,6 +85,8 @@ private:
     double ScoreParticlePose(LogField* logField, double deltaX, double deltaY, double deltaTheta);
     double ScoreRelativePosition(LogField* logField, double deltaX, double deltaY, double deltaTheta);
 
+    void FillParticlesToRefresh();
+    void FlushRefreshedParticles();
 };
 
 #endif

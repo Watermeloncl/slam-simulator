@@ -14,9 +14,7 @@ RobotCommand AIModule::GetCommand(/*pose, map*/) {
     if(!(this->started)) {
         this->started = true;
         return RobotCommand::STOP;
-    }
+    }    
 
-    //TODO
-
-    return RobotCommand::FORWARD;
+    return RobotCommand::RIGHT;
 }

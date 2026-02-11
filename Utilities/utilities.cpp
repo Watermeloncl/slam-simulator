@@ -17,13 +17,20 @@ int Utilities::GetRandomInt(int min, int max) {
 }
 
 double Utilities::GetRandomNoise(double mean, double sigma) {
-    static thread_local std::normal_distribution<double> random_accuracy(0.0, 1.0);
+    static thread_local std::normal_distribution<double> randomAccuracy(0.0, 1.0);
 
-    return (random_accuracy(GetGen()) * mean * sigma);
+    return (randomAccuracy(GetGen()) * mean * sigma);
 }
 
 double Utilities::GetFixedNoise(double sigma) {
     static thread_local std::normal_distribution<double> accuracy(0.0, 1.0);
     
     return accuracy(GetGen()) * sigma;
+}
+
+// Excludes max
+double Utilities::GetUniformEpsilon(double max) {
+    static thread_local std::uniform_real_distribution<double> epsilonDistro(0.0, max);
+
+    return epsilonDistro(GetGen());
 }

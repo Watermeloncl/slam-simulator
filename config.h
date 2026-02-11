@@ -35,6 +35,7 @@ const std::pair<double, double> SENSOR_MODEL_ACCURACY[SENSOR_MODEL_ACCURACY_TIER
 };
 
 // Default based on lidar specs is 1% < 12 meters. For simplicity, one range resolution for all distances
+//   all measurements outside that range get rejected.
 const double SENSOR_MODEL_RANGE_RESOLUTION = 0.01;
 
 // Motion Model Details
@@ -45,7 +46,30 @@ const double MOTION_MODEL_FORWARD_DEVIATION = 0.05; //0.05; //5%: hardwood floor
 const double MOTION_MODEL_FORWARD_ROTATION_DEVIATION = 0.02 * std::sqrt(MOTION_MODEL_MAX_VELOCITY / 1000); //0.02 radians per meter, hardwood floor
 const double MOTION_MODEL_ROTATION_DEVIATION = 0.02; //0.02; //2%: hardwood floor
 const double MOTION_MODEL_ROTATION_FIXED = MOTION_MODEL_ROTATION_DEVIATION * std::sqrt(MOTION_PERIOD); // motion period / 1.0
-const double MOTION_MODEL_BASE_DEVIATION = 0.001;
+const double MOTION_MODEL_BASE_ROTATION_DEVIATION = 0.001; //0.001
+const double MOTION_MODEL_BASE_FORWARD_DEVIATION = 0.25; //0.25
+
+/*** suggested standard deviations ***
+ * 
+ * In doubles, 0.1 for 10%.
+ * 
+ * Translation
+ *   1% is heaven
+ *   2-5% for hard floor
+ *   10-15% for low pile
+ *   15-20% for medium pile
+ *   20-40% for high pile
+ * 
+ *  Rotation when moving forward is 0.02 rad/m
+ * 
+ * Rotation
+ *   0% (heaven)
+ *   1-2% (hardwood floor)
+ *   3-5% (low pile carpet)
+ *   5-10% (medium pile carpet)
+ *   10-15% (high pile carpet)
+ * 
+ * */
 
 const double MOTION_MODEL_ROTATION_AMP = MOTION_MODEL_MAX_VELOCITY / MOTION_PERIOD;
 const double SLAM_MINIMUM_DISTANCE = SLAM_MINIMUM_DISTANCE_PERCENT * (SLAM_MINIMUM_PERIOD_COUNT * MOTION_MODEL_MAX_VELOCITY); // must move 40 mm before running full algorithm (see rotation amp)
@@ -57,15 +81,15 @@ const int GMAPPING_SECTOR_SIZE = 16; //each sector is 16 x 16 cells
 const int GMAPPING_SECTOR_NUM_CELLS = GMAPPING_SECTOR_SIZE*GMAPPING_SECTOR_SIZE;
 const int GMAPPING_SECTOR_MM_SIZE = GMAPPING_SECTOR_SIZE*GMAPPING_GRID_CELL_SIZE;
 const int GMAPPING_HISTORY_SIZE = SLAM_MAXIMUM_PERIOD_COUNT * 2;
-const double GMAPPING_MAX_LOG_ODDS = 10.0; // +- this much
-const double GMAPPING_LOG_ODDS_HIT = 0.85;//tmp
-const double GMAPPING_LOG_ODDS_MISS = -0.4;//tmp
+const double GMAPPING_MAX_LOG_ODDS = 5.0; // +- this much
+const double GMAPPING_LOG_ODDS_HIT = 0.85;//tmp //should these be based on distance? (sensor noise)
+const double GMAPPING_LOG_ODDS_MISS = -0.2;//tmp
 const double GMAPPING_LOG_ODDS_WALL_VALUE = 1.0; // what must log odds be to be treated as "wall" in scan matching
-const double GMAPPING_SCAN_MATCHING_PERCENT_LASERS_USED = 0.3; // 1 in every 5
+const double GMAPPING_SCAN_MATCHING_PERCENT_LASERS_USED = 0.3; // 1 in every 5 would be 0.2
 const double GMAPPING_SCAN_MATCHING_DEFAULT_SIGMA = 85.0;
 const double GMAPPING_SCAN_MATCHING_MAX_DIST = 10 * GMAPPING_GRID_CELL_SIZE*GMAPPING_GRID_CELL_SIZE; // number of cells max distance as "matched"
 const double GMAPPING_SCAN_MATCHING_MAX_NUDGES = 1; // num times it will try to "nudge" a particle (unless a nudge fails)
-const double GMAPPING_MINIMUM_NEFF = 1.0 / 3.0; // what minimum percentage of particles must be "pulling their weight" at any given time
+const double GMAPPING_MINIMUM_NEFF = 1.0 / 2.0; // what minimum percentage of particles must be "pulling their weight" at any given time
 
 ///////////////////////////////////////////////
 //// Do not touch any parameters here down ////
@@ -155,5 +179,7 @@ enum class RobotCommand { //do we add none?
 const double GMAPPING_INF = 1e15;
 const double GMAPPING_SCAN_MATCHING_NUDGE_JUMP = (MOTION_MODEL_FORWARD_DEVIATION * MOTION_MODEL_MAX_VELOCITY * SLAM_MINIMUM_PERIOD_COUNT) / 2.0;
 const double GMAPPING_SCAN_MATCHING_NUDGE_TWIST = (MOTION_MODEL_ROTATION * SLAM_MINIMUM_PERIOD_COUNT * MOTION_MODEL_ROTATION_DEVIATION) / 2.0;
+const double GMAPPING_NEFF_THRESHOLD = GMAPPING_MINIMUM_NEFF * GMAPPING_NUM_PARTICLES;
+const double GMAPPING_STARTING_WEIGHT = 1.0 / GMAPPING_NUM_PARTICLES;
 
 #endif

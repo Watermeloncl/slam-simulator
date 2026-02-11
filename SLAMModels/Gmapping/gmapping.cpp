@@ -50,6 +50,13 @@ void Gmapping::InitSlam(double startX, double startY, double startTheta) {
     this->startTheta = startTheta;
 
     this->slamFinished = true;
+    this->refreshParticles = false;
+
+    this->particlesToRefresh = new int[GMAPPING_NUM_PARTICLES];
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+        this->particlesToRefresh[i] = i;
+    }
+
     this->slamSemaphore = CreateSemaphore(NULL, 0, 1, NULL);
     this->slamThread = std::thread(RefineEstimates, this);
 
@@ -72,7 +79,7 @@ void Gmapping::InitSlam(double startX, double startY, double startTheta) {
         startingSector4->AddReference();
 
         this->particles[i]->map = startingGrid;
-        this->particles[i]->weight = 1.0 / GMAPPING_NUM_PARTICLES;
+        this->particles[i]->weight = GMAPPING_STARTING_WEIGHT;
     }
 }
 
@@ -95,11 +102,11 @@ void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandT
             this->particles[i]->y = this->currPacket->particles[i]->y;
             this->particles[i]->theta = this->currPacket->particles[i]->theta;
             this->particles[i]->weight = this->currPacket->particles[i]->weight;
-            //TODO this is where old particles need to convert to new ones (resampled)
         }
 
-        //TODO reset particles to "updated pose"
-        //TODO run through updates and add them to each particle
+        if(this->refreshParticles) {
+            this->FlushRefreshedParticles();
+        }
 
         for(int i = 0; i < this->historySize; i++) {
             this->MoveParticles(this->history[i].first, this->history[i].second);
@@ -201,8 +208,8 @@ void Gmapping::RefineEstimates() {
         this->CreateInverseSigmas(logField);
 
         for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-            this->GetPoints(logField, i); // i
-            logField->currParticle = this->currPacket->particles[i];  // i
+            this->GetPoints(logField, i);
+            logField->currParticle = this->currPacket->particles[i];
 
             //num points will not be 0.
             this->GetSectorRange(logField);
@@ -234,28 +241,20 @@ void Gmapping::RefineEstimates() {
             neffWeight += (this->currPacket->particles[i]->weight)*(this->currPacket->particles[i]->weight);
         }
 
-        //particle efficiency
-        // Neff = 1 / ( sum(final_weights^2))
+        // particle efficiency; Neff = 1 / ( sum(final_weights^2))
         double neff = 1.0 / neffWeight;
+        // std::cout << "neff: " << neff << std::endl;
         // ^^^^ step 8 (-9) ^^^^
 
-
-
-        // for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-
-            //add missing sectors from movement
-            //nudge particles according to score
-            //.........
-            //checkNeff
-            //  if neff below n/2, resample
-            //  after resample, reset weights
-        
-        // }
-
-
-        this->UpdateMaps(); //outside the loop, or inside?
-
+        // steps 12, 13
+        this->UpdateMaps();
         this->CreateRenderCopy();
+
+        // steps 9-11
+        if(neff < (GMAPPING_NEFF_THRESHOLD)) {
+            this->FillParticlesToRefresh();
+        }
+
         this->slamFinished = true;
     }
 }
@@ -274,7 +273,6 @@ void Gmapping::UpdateMaps() {
     }
 
     for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-
         Particle* particle = this->currPacket->particles[i];
         if(particle->map == nullptr) {
             continue;
@@ -376,7 +374,7 @@ void Gmapping::AddAffectedCells(int startX, int startY, int endX, int endY, std:
 }
 
 void Gmapping::CreateRenderCopy() {
-    int strongestIndex = this->GetStrongestParticleIndex();
+    int strongestIndex = this->GetStrongestParticleIndex(this->currPacket->particles);
     std::unordered_map<std::pair<int, int>, Sector*, pair_hash>* model = 
             this->currPacket->particles[strongestIndex]->map->GetCells();
 
@@ -427,7 +425,7 @@ void Gmapping::UpdatePoses() {
     std::lock_guard<std::mutex> lock(this->guardPoses);
 
     PoseRenderPacket* newPacket = new PoseRenderPacket(GMAPPING_NUM_PARTICLES, 3);
-    int strongestIndex = this->GetStrongestParticleIndex();
+    int strongestIndex = this->GetStrongestParticleIndex(this->particles);
 
     std::pair<double, double> screenCords;
     double cosTheta = std::cos(this->startTheta);
@@ -455,7 +453,7 @@ void Gmapping::UpdatePoses() {
     this->ReplacePoses(newPacket);
 }
 
-int Gmapping::GetStrongestParticleIndex() {
+int Gmapping::GetStrongestParticleIndex(Particle** particles) {
     int index = 0;
     double maxWeight = -1;
     for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
@@ -767,6 +765,8 @@ void Gmapping::SampleParticles(LogField* logField) {
     double totalSinTheta = 0.0;
     double totalCosTheta = 0.0;
 
+    // std::cout << "================================== p scores ==============================" << std::endl;
+
     for(int i = 0; i < 3; i++) { // theta
         for(int j = 0; j < 3; j++) { // y
             for(int k = 0; k < 3; k++) { // x
@@ -774,6 +774,8 @@ void Gmapping::SampleParticles(LogField* logField) {
 
                 scanScore[index] = std::exp(scanScore[index]);
                 motionScore[index] = std::exp(motionScore[index]);
+
+                // std::cout << scanScore[index] << " " << motionScore[index] << std::endl;
 
                 sampleWeight = scanScore[index]*motionScore[index];
                 totalWeight += sampleWeight;
@@ -787,11 +789,13 @@ void Gmapping::SampleParticles(LogField* logField) {
         }
     }
 
-    logField->currParticle->x = totalX / totalWeight;
-    logField->currParticle->y = totalY / totalWeight;
-    logField->currParticle->theta = std::atan2(totalSinTheta, totalCosTheta);
+    if(totalWeight > 0) {
+        logField->currParticle->x = totalX / totalWeight;
+        logField->currParticle->y = totalY / totalWeight;
+        logField->currParticle->theta = std::atan2(totalSinTheta, totalCosTheta);
 
-    logField->currParticle->weight *= totalWeight;
+        logField->currParticle->weight *= totalWeight;
+    }
 }
 
 //TODO might need to change motion_model_forward_deviation
@@ -808,11 +812,11 @@ double Gmapping::ScoreParticlePose(LogField* logField, double deltaX, double del
     double thetaDiff = thetaTravelled - (this->currPacket->expTheta);
     double thetaError = std::atan2(std::sin(thetaDiff), std::cos(thetaDiff));
 
-    double distSigma = deltaDist * MOTION_MODEL_FORWARD_DEVIATION;
+    double distSigma = deltaDist * MOTION_MODEL_FORWARD_DEVIATION + MOTION_MODEL_BASE_FORWARD_DEVIATION;
 
     double sigmaRotation = (thetaTravelled * MOTION_MODEL_ROTATION);
     double sigmaVeer = (deltaDist * MOTION_MODEL_FORWARD_ROTATION_DEVIATION);
-    double thetaSigma = std::sqrt(sigmaRotation*sigmaRotation + sigmaVeer*sigmaVeer + MOTION_MODEL_BASE_DEVIATION*MOTION_MODEL_BASE_DEVIATION);
+    double thetaSigma = std::sqrt(sigmaRotation*sigmaRotation + sigmaVeer*sigmaVeer + MOTION_MODEL_BASE_ROTATION_DEVIATION*MOTION_MODEL_BASE_ROTATION_DEVIATION);
 
     return -0.5 * (((distDiff*distDiff) / (distSigma*distSigma)) + ((thetaError*thetaError) / (thetaSigma*thetaSigma)));
 }
@@ -851,4 +855,102 @@ double Gmapping::ScoreRelativePosition(LogField* logField, double deltaX, double
     }
 
     return score;
+}
+
+// Choose with replacement (uses comb randomness; guarentees the best particles get chosen at least once)
+void Gmapping::FillParticlesToRefresh() {
+
+    // Pick particles for refresh
+    double offset = 1.0 / GMAPPING_NUM_PARTICLES;
+    double position = Utilities::GetUniformEpsilon(offset);
+
+    Particle** particles = this->currPacket->particles;
+    double currWeightMass = particles[0]->weight;
+    int particleNum = 0;
+
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+        while(currWeightMass <= position) {
+            particleNum++;
+            currWeightMass += particles[particleNum]->weight;
+        }
+
+        this->particlesToRefresh[i] = particleNum;
+        position += offset;
+    }
+
+    // Determine particle assignment
+    std::vector<int> unassigned; //particles not yet assigned a location
+    std::vector<int> unfulfilled; //simply nums 0-numparticles that aren't in particlesToRefresh
+    unassigned.reserve(8);
+    unfulfilled.reserve(8);
+
+    int checkPosition = 0;
+
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+        while(i > this->particlesToRefresh[checkPosition]) {
+            unassigned.push_back(checkPosition);
+            checkPosition++;
+            if(checkPosition == GMAPPING_NUM_PARTICLES) {
+                break;
+            }
+        }
+
+        //edge case
+        if(checkPosition == GMAPPING_NUM_PARTICLES) {
+            while(i < GMAPPING_NUM_PARTICLES) {
+                unfulfilled.push_back(i);
+                i++;
+            }
+            break;
+        }
+
+        if(i < this->particlesToRefresh[checkPosition]) {
+            unfulfilled.push_back(i);
+        } else if(i == this->particlesToRefresh[checkPosition]) {
+            checkPosition++;
+        }
+    }
+
+    //edge case
+    while(checkPosition < GMAPPING_NUM_PARTICLES) {
+        unassigned.push_back(checkPosition);
+        checkPosition++;
+    }
+
+    // Run through the other particles and clear their occupancy maps, as well as
+    //  add the new one in. Just need to add maps; later, when we refresh, we
+    //  change the other values
+    for(int i = 0; i < ((int)(unfulfilled.size())); i++) {
+        this->currPacket->particles[unfulfilled[i]]->map->ClearSectors();
+        this->currPacket->particles[unfulfilled[i]]->map->FillSectors(this->currPacket->particles[this->particlesToRefresh[unassigned[i]]]->map->GetSectors());
+    }
+
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+        this->currPacket->particles[i]->weight = GMAPPING_STARTING_WEIGHT;
+    }
+
+    this->refreshParticles = true;
+}
+
+void Gmapping::FlushRefreshedParticles() {
+    Particle* sourceParticle;
+    Particle* destinationParticle;
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+        destinationParticle = this->particles[i];
+        sourceParticle = this->particles[this->particlesToRefresh[i]];
+
+        destinationParticle->oldScanX = sourceParticle->oldScanX;
+        destinationParticle->oldScanY = sourceParticle->oldScanY;
+        destinationParticle->oldScanTheta = sourceParticle->oldScanTheta;
+        
+        destinationParticle->currScanX = sourceParticle->currScanX;
+        destinationParticle->currScanY = sourceParticle->currScanY;
+        destinationParticle->currScanTheta = sourceParticle->currScanTheta;
+
+        destinationParticle->x = sourceParticle->x;
+        destinationParticle->y = sourceParticle->y;
+        destinationParticle->theta = sourceParticle->theta;
+
+        destinationParticle->accumulatedPose = sourceParticle->accumulatedPose;
+    }
 }

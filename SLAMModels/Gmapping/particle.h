@@ -36,7 +36,6 @@ public:
 
     Particle* Copy();
     void UpdateHistory();
-    void AddNudges();
 };
 
 #endif

@@ -8,6 +8,7 @@ public:
     static int GetRandomInt(int min, int max);
     static double GetRandomNoise(double mean, double sigma);
     static double GetFixedNoise(double value);
+    static double GetUniformEpsilon(double max);
 private:
     Utilities() = default;
 };
