@@ -64,6 +64,8 @@ void Simulator::RunMainLoop() {
     this->slamModule->InitSlam(this->robotModel->GetRealX(), this->robotModel->GetRealY(), this->robotModel->GetRealTheta());
     this->graphicsModule->GiveRenderMapAddress(this->slamModule->GetRenderMapAddress());
     this->graphicsModule->GiveRenderMapGuard(this->slamModule->GetRenderMapGuard());
+    this->aiModule->GiveClickInput(this->graphicsModule->GetClickInput());
+    this->aiModule->GiveRobotModel(this->robotModel);
 
     //set slam algorithm here?
 
@@ -104,7 +106,7 @@ void Simulator::RunMainLoop() {
 
 
         while(motionAccumulator >= motionPeriod) {
-            //todo update AI
+            this->aiModule->UpdateAI();
             
             RobotCommand initialCommand = this->aiModule->GetCommand();
             this->robotModel->CommandRobot(initialCommand, changeDist, changeTheta);

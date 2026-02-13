@@ -24,7 +24,7 @@ const double MOTION_PERIOD = GRAPHICS_FPS; // No point having it faster than gra
 const int SLAM_MINIMUM_PERIOD_COUNT = 11; // At least how many frames must pass before the algorithm considers running (in tangent with slam_period) consider keeping at a minimum of scan period (10.9)
 const int SLAM_MAXIMUM_PERIOD_COUNT = 60; // The maximum frames that can pass before the algorithm must run
 const double SLAM_MINIMUM_DISTANCE_PERCENT = 0.8; // a percentage of maximum movement within minimum period count (rotation scaled appropriately);
-                                                  //   helper equation defined lower as SLAM_MINIMUM_DISTANCE 
+                                                  //   helper equation defined lower as SLAM_MINIMUM_DISTANCE (0.8 == 80%; 1.5 == 150%)
 
 // Defaults based on lidar specs {1% <= 3000, 2% 3-5, 2.5% 5+}. Be sure to cover measurement range.
 const int SENSOR_MODEL_ACCURACY_TIERS = 3;
@@ -41,8 +41,12 @@ const double SENSOR_MODEL_RANGE_RESOLUTION = 0.01;
 // Motion Model Details
 const double MOTION_MODEL_ACCELERATION = 150.0 * MOTION_PERIOD; // mm/s^2
 const double MOTION_MODEL_MAX_VELOCITY = 300.0 * MOTION_PERIOD; // mm/s
+
+const double MOTION_MODEL_TIME_TO_STOP = (MOTION_MODEL_MAX_VELOCITY / MOTION_MODEL_ACCELERATION);
+const double MOTION_MODEL_DISTANCE_TO_STOP = (MOTION_MODEL_MAX_VELOCITY*MOTION_MODEL_MAX_VELOCITY) / (2.0*MOTION_MODEL_ACCELERATION);
+
 const double MOTION_MODEL_ROTATION = 1.0 * MOTION_PERIOD; // 1 rad/s, or 57.2 degrees per second
-const double MOTION_MODEL_FORWARD_DEVIATION = 0.05; //0.05; //5%: hardwood floor
+const double MOTION_MODEL_FORWARD_DEVIATION = 0.02; //0.05; //5%: hardwood floor
 const double MOTION_MODEL_FORWARD_ROTATION_DEVIATION = 0.02 * std::sqrt(MOTION_MODEL_MAX_VELOCITY / 1000); //0.02 radians per meter, hardwood floor
 const double MOTION_MODEL_ROTATION_DEVIATION = 0.02; //0.02; //2%: hardwood floor
 const double MOTION_MODEL_ROTATION_FIXED = MOTION_MODEL_ROTATION_DEVIATION * std::sqrt(MOTION_PERIOD); // motion period / 1.0
@@ -83,7 +87,7 @@ const int GMAPPING_SECTOR_MM_SIZE = GMAPPING_SECTOR_SIZE*GMAPPING_GRID_CELL_SIZE
 const int GMAPPING_HISTORY_SIZE = SLAM_MAXIMUM_PERIOD_COUNT * 2;
 const double GMAPPING_MAX_LOG_ODDS = 5.0; // +- this much
 const double GMAPPING_LOG_ODDS_HIT = 0.85;//tmp //should these be based on distance? (sensor noise)
-const double GMAPPING_LOG_ODDS_MISS = -0.2;//tmp
+const double GMAPPING_LOG_ODDS_MISS = -0.4;//tmp
 const double GMAPPING_LOG_ODDS_WALL_VALUE = 1.0; // what must log odds be to be treated as "wall" in scan matching
 const double GMAPPING_SCAN_MATCHING_PERCENT_LASERS_USED = 0.3; // 1 in every 5 would be 0.2
 const double GMAPPING_SCAN_MATCHING_DEFAULT_SIGMA = 85.0;
@@ -148,6 +152,7 @@ const int COLOR_WALL_BRUSH = 0xFFFFFFFF; // fear made me make this. Fear and ign
 const int BACKGROUND_LINE_WIDTH = 4;
 const int MAP_LINE_WIDTH = 2;
 
+const int ROBOT_REAL_RADIUS = 150; //mm
 const int ROBOT_RADIUS = 8;
 const double LIDAR_POINT_RADIUS = 2.0;
 const double GMAPPING_PARTICLE_RADIUS = 3.0;

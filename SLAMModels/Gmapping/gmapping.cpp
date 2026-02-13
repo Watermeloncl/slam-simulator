@@ -243,7 +243,6 @@ void Gmapping::RefineEstimates() {
 
         // particle efficiency; Neff = 1 / ( sum(final_weights^2))
         double neff = 1.0 / neffWeight;
-        // std::cout << "neff: " << neff << std::endl;
         // ^^^^ step 8 (-9) ^^^^
 
         // steps 12, 13
@@ -837,7 +836,6 @@ double Gmapping::ScoreRelativePosition(LogField* logField, double deltaX, double
     double invCellSize = 1.0 / GMAPPING_GRID_CELL_SIZE;
     for(int i = 0; i < logField->numPoints; i += invScanPercent) {
 
-        //add nudges?
         x = (logField->cartesianPoints[i]->x) + deltaX + logField->currParticle->nudgeX;
         y = (logField->cartesianPoints[i]->y) + deltaY + logField->currParticle->nudgeY;
 

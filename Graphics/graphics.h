@@ -10,6 +10,7 @@
 #include <memory>
 
 #include "renderPacket.h"
+#include "..\Listener\clickInput.h"
 #include "..\World\map.h"
 #include "..\config.h"
 
@@ -35,6 +36,7 @@ private:
     std::vector<float>** renderMapAddress = nullptr;
     std::shared_ptr<std::mutex> guardRenderMap;
 
+    ClickInput* clickInput = nullptr;
 public:
     GraphicsModule(HINSTANCE hInstance, int nCmdShow);
     ~GraphicsModule();
@@ -51,6 +53,7 @@ public:
 
     void GiveRenderMapAddress(std::vector<float>** address);
     void GiveRenderMapGuard(std::shared_ptr<std::mutex> guard);
+    ClickInput* GetClickInput();
 
 private:
     void InitD2D();

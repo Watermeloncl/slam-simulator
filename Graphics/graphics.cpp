@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "graphics.h"
+#include "..\Listener\clickInput.h"
 #include "..\Listener\listener.h"
 #include "..\World\map.h"
 #include "..\World\Objects\oline.h"
@@ -26,6 +27,7 @@ GraphicsModule::GraphicsModule(HINSTANCE hInstance, int nCmdShow) {
 GraphicsModule::~GraphicsModule() {
     this->CleanupD2D();
     delete this->currentPacket;
+    delete this->clickInput;
 }
 
 void GraphicsModule::InitD2D() {
@@ -300,6 +302,10 @@ void GraphicsModule::GiveRenderMapGuard(std::shared_ptr<std::mutex> guard) {
     // (*(this->renderManGuard)) access like this
 }
 
+ClickInput* GraphicsModule::GetClickInput() {
+    return this->clickInput;
+}
+
 void GraphicsModule::CreateWindowModule(HINSTANCE hInstance, int nCmdShow) {
     const wchar_t CLASS_NAME[]  = L"SLAM Window Class";
 
@@ -336,6 +342,10 @@ void GraphicsModule::CreateWindowModule(HINSTANCE hInstance, int nCmdShow) {
         return;
     }
 
+    ClickInput* clickInput = new ClickInput();
+    SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)clickInput);
+    this->clickInput = clickInput;
+
     ShowWindow(hwnd, nCmdShow);
 }
 
@@ -345,6 +355,7 @@ void GraphicsModule::DrawStaticElements() {
     }
 }
 
+// adds or subtracts 1 appropriately to center background lines on specified points
 std::pair<float, float> GraphicsModule::XYToDipsBackground(int quadrant, double x, double y) {
     switch(quadrant) {
         case TOP_LEFT:
