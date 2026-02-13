@@ -46,11 +46,11 @@ const double MOTION_MODEL_TIME_TO_STOP = (MOTION_MODEL_MAX_VELOCITY / MOTION_MOD
 const double MOTION_MODEL_DISTANCE_TO_STOP = (MOTION_MODEL_MAX_VELOCITY*MOTION_MODEL_MAX_VELOCITY) / (2.0*MOTION_MODEL_ACCELERATION);
 
 const double MOTION_MODEL_ROTATION = 1.0 * MOTION_PERIOD; // 1 rad/s, or 57.2 degrees per second
-const double MOTION_MODEL_FORWARD_DEVIATION = 0.02; //0.05; //5%: hardwood floor
-const double MOTION_MODEL_FORWARD_ROTATION_DEVIATION = 0.02 * std::sqrt(MOTION_MODEL_MAX_VELOCITY / 1000); //0.02 radians per meter, hardwood floor
-const double MOTION_MODEL_ROTATION_DEVIATION = 0.02; //0.02; //2%: hardwood floor
+const double MOTION_MODEL_FORWARD_DEVIATION = 0.2; //0.05; //5%: hardwood floor
+const double MOTION_MODEL_FORWARD_ROTATION_DEVIATION = 0.025 * std::sqrt(MOTION_MODEL_MAX_VELOCITY / 1000); //0.02 radians per meter, hardwood floor
+const double MOTION_MODEL_ROTATION_DEVIATION = 0.06; //0.02; //2%: hardwood floor
 const double MOTION_MODEL_ROTATION_FIXED = MOTION_MODEL_ROTATION_DEVIATION * std::sqrt(MOTION_PERIOD); // motion period / 1.0
-const double MOTION_MODEL_BASE_ROTATION_DEVIATION = 0.001; //0.001
+const double MOTION_MODEL_BASE_ROTATION_DEVIATION = 0.25; //0.01
 const double MOTION_MODEL_BASE_FORWARD_DEVIATION = 0.25; //0.25
 
 /*** suggested standard deviations ***
@@ -92,7 +92,7 @@ const double GMAPPING_LOG_ODDS_WALL_VALUE = 1.0; // what must log odds be to be 
 const double GMAPPING_SCAN_MATCHING_PERCENT_LASERS_USED = 0.3; // 1 in every 5 would be 0.2
 const double GMAPPING_SCAN_MATCHING_DEFAULT_SIGMA = 85.0;
 const double GMAPPING_SCAN_MATCHING_MAX_DIST = 10 * GMAPPING_GRID_CELL_SIZE*GMAPPING_GRID_CELL_SIZE; // number of cells max distance as "matched"
-const double GMAPPING_SCAN_MATCHING_MAX_NUDGES = 1; // num times it will try to "nudge" a particle (unless a nudge fails)
+const double GMAPPING_SCAN_MATCHING_MAX_NUDGES = 3; // num times it will try to "nudge" a particle (unless a nudge fails)
 const double GMAPPING_MINIMUM_NEFF = 1.0 / 2.0; // what minimum percentage of particles must be "pulling their weight" at any given time
 
 ///////////////////////////////////////////////

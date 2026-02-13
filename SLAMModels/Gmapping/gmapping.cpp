@@ -223,7 +223,13 @@ void Gmapping::RefineEstimates() {
             //check local samples and build L(k)
             this->SampleParticles(logField);
 
-            delete logField->cartesianPoints;
+            for(int i = 0; i < logField->numPoints; i++) {
+                delete logField->cartesianPoints[i];
+                delete logField->poses[i];
+            }
+
+            delete[] logField->cartesianPoints;
+            delete[] logField->poses;
         }
 
         delete logField;
@@ -507,14 +513,15 @@ void Gmapping::GetPoints(LogField* logField, int particleIndex) {
 
     int cloudPoint = 0;
 
-
-    OPoint** returnPoints = new OPoint*[logField->numPoints];
+    OPoint** returnCartPoints = new OPoint*[logField->numPoints];
+    OPoint** returnPoses = new OPoint*[logField->numPoints];
 
     for(int i = 0; i < SENSOR_MODEL_POINTS_PER_SCAN; ++i) {
         if(cloud[cloudPoint]->theta == startRadian) {
             std::pair<double, double> ends = MathUtilities::PolarToCartesian(cloud[cloudPoint]->range, cloud[cloudPoint]->theta + poseStartTheta, poseStartX, poseStartY);
 
-            returnPoints[cloudPoint] = new OPoint(ends.first, ends.second);
+            returnCartPoints[cloudPoint] = new OPoint(ends.first, ends.second);
+            returnPoses[cloudPoint] = new OPoint(poseStartX, poseStartY);
 
             cloudPoint++;
             if(cloudPoint == logField->numPoints) {
@@ -528,7 +535,8 @@ void Gmapping::GetPoints(LogField* logField, int particleIndex) {
         startRadian -= deltaRadian;
     }
 
-    logField->cartesianPoints = returnPoints;
+    logField->cartesianPoints = returnCartPoints;
+    logField->poses = returnPoses;
 }
 
 // include safety of +- 1 both x/y
@@ -835,15 +843,33 @@ double Gmapping::ScoreRelativePosition(LogField* logField, double deltaX, double
     int invScanPercent = (int)(1.0 / GMAPPING_SCAN_MATCHING_PERCENT_LASERS_USED);
     double invCellSize = 1.0 / GMAPPING_GRID_CELL_SIZE;
     for(int i = 0; i < logField->numPoints; i += invScanPercent) {
+        x = (logField->cartesianPoints[i]->x);
+        y = (logField->cartesianPoints[i]->y);
 
-        x = (logField->cartesianPoints[i]->x) + deltaX + logField->currParticle->nudgeX;
-        y = (logField->cartesianPoints[i]->y) + deltaY + logField->currParticle->nudgeY;
+        if((deltaTheta + logField->currParticle->nudgeTheta) != 0) {
+            x -= (logField->poses[i]->x);
+            y -= (logField->poses[i]->y);
 
-        if(deltaTheta) {
             tempX = x;
             x = tempX*cosTheta - y*sinTheta;
             y = tempX*sinTheta + y*cosTheta;
+
+            x += (logField->poses[i]->x);
+            y += (logField->poses[i]->y);
         }
+
+
+        x += deltaX + logField->currParticle->nudgeX;
+        y += deltaY + logField->currParticle->nudgeY;
+
+        // x = (logField->cartesianPoints[i]->x) + deltaX + logField->currParticle->nudgeX;
+        // y = (logField->cartesianPoints[i]->y) + deltaY + logField->currParticle->nudgeY;
+
+        // if(deltaTheta) {
+        //     tempX = x;
+        //     x = tempX*cosTheta - y*sinTheta;
+        //     y = tempX*sinTheta + y*cosTheta;
+        // }
 
         //convert to likelihood field from cartesian world
         x += logField->offsetX;

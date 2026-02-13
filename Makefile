@@ -1,3 +1,4 @@
+# mingw32-make
 all: main
 
 main: main.cpp

@@ -16,7 +16,10 @@ public:
     PolarPoint** cloud = nullptr;
     double* inverseSigmas = nullptr;
     Particle* currParticle = nullptr;
+
     OPoint** cartesianPoints = nullptr;
+    OPoint** poses = nullptr;
+
     int numPoints = 0;
 
     int sectorMinX = 0.0;
