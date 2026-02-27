@@ -2,7 +2,7 @@
 #include <cmath>
 
 #include "ai.h"
-#include "..\Listener\clickInput.h"
+#include "..\Listener\userInput.h"
 #include "..\Models\robotModel.h"
 #include "..\Utilities\mathUtilities.h"
 #include "..\config.h"
@@ -13,13 +13,13 @@ AIModule::AIModule() {
     this->commandSequence[0] = {RobotCommand::STOP, 0};
 }
 
-//must NOT delete robotModel or clickInput
+//must NOT delete robotModel or userInput
 AIModule::~AIModule() {
 
 }
 
-void AIModule::GiveClickInput(ClickInput* clickInput) {
-    this->clickInput = clickInput;
+void AIModule::GiveUserInput(UserInput* userInput) {
+    this->userInput = userInput;
 }
 
 void AIModule::GiveRobotModel(RobotModel* robotModel) {
@@ -30,14 +30,14 @@ void AIModule::GiveRobotModel(RobotModel* robotModel) {
 //this version requires a bit of cheating to get distance; motion model is provided
 //"close enough" model
 void AIModule::UpdateAI() {
-    if(!(this->clickInput->GetClicked())) {
+    if(!(this->userInput->GetClicked())) {
         return;
     }
 
-    this->clickInput->SetUnclicked();
+    this->userInput->SetUnclicked();
 
-    double x = (double)(this->clickInput->GetX());
-    double y = (double)(this->clickInput->GetY());
+    double x = (double)(this->userInput->GetX());
+    double y = (double)(this->userInput->GetY());
 
     if((x < (CLIENT_SCREEN_WIDTH / 2.0)) || (y > (CLIENT_SCREEN_HEIGHT / 2.0))) {
         return;
@@ -76,16 +76,16 @@ void AIModule::UpdateAI() {
     this->currInstruction = 3;
 }
 
-//todo: self-discovery of map
-RobotCommand AIModule::GetCommand(/*pose, map*/) {
+RobotCommand AIModule::GetCommand() {
     //prevents pre-rotation?
     if(!(this->started)) {
         this->started = true;
         return RobotCommand::STOP;
     }
 
-    // override with simple command
-    // return RobotCommand::RIGHT;
+    if(HARD_OVERRIDE_COMMANDS) {
+        return OVERRIDE;
+    }
 
     if(this->commandSequence[this->currInstruction].second <= 0) {
         if(this->currInstruction == 0) {
@@ -98,4 +98,8 @@ RobotCommand AIModule::GetCommand(/*pose, map*/) {
     (this->commandSequence[this->currInstruction].second)--;
 
     return this->commandSequence[this->currInstruction].first;
+}
+
+void AIModule::SetStarted() {
+    this->started = true;
 }

@@ -12,8 +12,11 @@ public:
 
     OPoint** pointCloud;
     PoseRenderPacket* poses;
+    PoseRenderPacket* extendedPoses;
 
-    RenderPacket(double realX, double realY, double realTheta, OPoint** pointCloud, PoseRenderPacket* poses);
+    double neff;
+
+    RenderPacket(double realX, double realY, double realTheta, OPoint** pointCloud, PoseRenderPacket* poses, PoseRenderPacket* extendedPoses, double neff);
     ~RenderPacket();
 };
 

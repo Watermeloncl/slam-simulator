@@ -21,10 +21,8 @@ public:
 private:
     Particle** particles = nullptr;
 
-    HANDLE slamSemaphore;
-    std::thread slamThread;
-    std::atomic<bool> slamFinished;
     std::atomic<bool> refreshParticles;
+
     bool backUpdated = true;
 
     int* particlesToRefresh = nullptr;
@@ -48,11 +46,6 @@ private:
 
     double lastScanTimestamp = 0.0;
 
-    //for render purposes. No other operation will access this!
-    double startX = 0.0;
-    double startY = 0.0;
-    double startTheta = 0.0;
-
 public:
     Gmapping();
     ~Gmapping();
@@ -60,16 +53,13 @@ public:
     void InitSlam(double startX, double startY, double startTheta);
 
     void UpdateSlam(double changeDist, double changeTheta, double commandTimestamp, double pointCloudTimestamp, PointCloud* pointCloud);
+    void RunSlam();
+
 private:
     void MoveParticles(double changeDist, double changeTheta);
-
-    void RefineEstimates();
+    void BackUpdateParticles();
 
     void UpdateMaps();
-    void AddAffectedCells(int startX, int startY, int endX, int endY, std::unordered_set<std::pair<int, int>, pair_hash>& misses, std::unordered_set<std::pair<int, int>, pair_hash>& hits);
-
-    void CreateRenderCopy();
-    std::pair<float, float> XYToDips(double x, double y);
 
     void UpdatePoses();
     int GetStrongestParticleIndex(Particle** particles);

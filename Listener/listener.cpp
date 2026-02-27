@@ -2,7 +2,7 @@
 #include <windowsx.h>
 
 #include "listener.h"
-#include "clickInput.h"
+#include "userInput.h"
 
 MSG ListenerModule::msg = {};
 
@@ -11,20 +11,29 @@ ListenerModule::ListenerModule() {
     // set private so that no instantiations can exist
 }
 
+//act on messages
+// - pause/unpause (space)
+// - Change Trajectory (click top right)
 LRESULT CALLBACK ListenerModule::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    ClickInput* clickInput = (ClickInput*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    UserInput* userInput = (UserInput*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
 
     switch (msg) {
         case WM_LBUTTONDOWN: {
-            if(clickInput == nullptr) {
+            if(userInput == nullptr) {
                 break;
             }
 
-            clickInput->SetClicked();
-            clickInput->SetX(GET_X_LPARAM(lParam));
-            clickInput->SetY(GET_Y_LPARAM(lParam));
+            userInput->SetClicked();
+            userInput->SetX(GET_X_LPARAM(lParam));
+            userInput->SetY(GET_Y_LPARAM(lParam));
 
             break;
+        }
+        case WM_KEYDOWN: {
+            if(wParam == VK_SPACE) {
+                userInput->SetSpaced();
+            }
+            return 0;
         }
         case WM_DESTROY: {
             PostQuitMessage(0);

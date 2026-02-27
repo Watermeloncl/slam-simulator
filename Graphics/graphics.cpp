@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <dwrite.h>
 #include <d2d1_1.h>
 #include <iostream>
 #include <unordered_map>
@@ -7,9 +8,10 @@
 #include <vector>
 #include <mutex>
 #include <memory>
+#include <cwchar>
 
 #include "graphics.h"
-#include "..\Listener\clickInput.h"
+#include "..\Listener\userInput.h"
 #include "..\Listener\listener.h"
 #include "..\World\map.h"
 #include "..\World\Objects\oline.h"
@@ -27,11 +29,12 @@ GraphicsModule::GraphicsModule(HINSTANCE hInstance, int nCmdShow) {
 GraphicsModule::~GraphicsModule() {
     this->CleanupD2D();
     delete this->currentPacket;
-    delete this->clickInput;
+    delete this->userInput;
 }
 
 void GraphicsModule::InitD2D() {
     D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory1), (void**)&factory);
+    DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&writeFactory));
 
     RECT rc;
     GetClientRect(this->hwnd, &rc);
@@ -53,6 +56,24 @@ void GraphicsModule::InitD2D() {
         this->deviceContext->CreateSolidColorBrush(D2D1::ColorF(COLOR_PALETTE_VALUES[i]), &tempBrush);
         this->brushes[COLOR_PALETTE_VALUES[i]] = tempBrush;
     }
+
+    this->writeFactory->CreateTextFormat(
+        L"Segoe UI",
+        NULL,           // font collection; unneeded since Segoe UI is standard
+        DWRITE_FONT_WEIGHT_NORMAL,
+        DWRITE_FONT_STYLE_NORMAL,
+        DWRITE_FONT_STRETCH_NORMAL,
+        15.0f,            // font size (dips)
+        L"en-us",       // language locale; interpretation basically
+        &(this->neffTextFormat)
+    );
+
+    this->neffNumLayout = D2D1::RectF(
+        (CLIENT_SCREEN_WIDTH / 2.0) + neffOffset + neffNumOffset, // width needed a small boost
+        (CLIENT_SCREEN_HEIGHT / 2.0) + neffOffset,
+        (CLIENT_SCREEN_WIDTH / 2.0) + neffOffset + 75 + neffNumOffset, // ballpark width/height maxima
+        (CLIENT_SCREEN_HEIGHT / 2.0) + neffOffset + 40
+    );
 
     this->sensorClip = D2D1::RectF(
         BACKGROUND_LINE_WIDTH,
@@ -111,6 +132,7 @@ void GraphicsModule::RenderFrame() {
     this->DrawPointCloud();
     this->DrawMap();
     this->DrawPoses(); // must check for nullptr
+    this->DrawNeff();
 
     this->deviceContext->EndDraw(); // BLOCKS for VSync
 }
@@ -146,6 +168,23 @@ void GraphicsModule::CreateBackground(Map* map) {
         );
     }
 
+    D2D1_RECT_F neffLayout = D2D1::RectF(
+        (CLIENT_SCREEN_WIDTH / 2.0) + neffOffset + 2, // width needed a small boost
+        (CLIENT_SCREEN_HEIGHT / 2.0) + neffOffset,
+        (CLIENT_SCREEN_WIDTH / 2.0) + neffOffset + 42, // ballpark width/height maxima
+        (CLIENT_SCREEN_HEIGHT / 2.0) + neffOffset + 40
+    );
+
+    deviceContext->DrawText(
+        neffText,
+        (UINT32)wcslen(neffText),
+        neffTextFormat,
+        neffLayout,
+        this->brushes[COLOR_PALETTE_BLACK]
+    );
+
+    this->DrawBigRobot();
+
     if(SHOW_POSSIBLE_STARTING_LOCATIONS) {
         OPoint** starts = map->GetStarts();
         for(int i = 0; i < map->GetStartsSize(); i++) {
@@ -171,7 +210,6 @@ void GraphicsModule::UpdateRenderInfo(RenderPacket* incoming) {
 }
 
 void GraphicsModule::DrawRobot(int quadrant, double x, double y, double theta, bool varsInScreenForm) {
-
     std::pair<float, float> temp;
     if(!varsInScreenForm) {
         temp = this->XYToDipsBackground(quadrant, x, y);
@@ -192,6 +230,23 @@ void GraphicsModule::DrawRobot(int quadrant, double x, double y, double theta, b
                         (float)(temp.second - (ROBOT_RADIUS * std::sin(theta)))),
         this->brushes[COLOR_PALETTE_BLACK],
         2,
+        nullptr
+    );
+}
+
+void GraphicsModule::DrawBigRobot() {
+    deviceContext->DrawEllipse(
+        D2D1::Ellipse(D2D1::Point2F(CLIENT_SCREEN_WIDTH * 0.75, CLIENT_SCREEN_HEIGHT * 0.75), ROBOT_REAL_RADIUS, ROBOT_REAL_RADIUS),
+        this->brushes[COLOR_PALETTE_LIGHT_GRAY],
+        3.5,
+        nullptr
+    );
+
+    deviceContext->DrawLine(
+        D2D1::Point2F(CLIENT_SCREEN_WIDTH * 0.75, CLIENT_SCREEN_HEIGHT * 0.75),
+        D2D1::Point2F((CLIENT_SCREEN_WIDTH * 0.75) + ROBOT_REAL_RADIUS, CLIENT_SCREEN_HEIGHT * 0.75),
+        this->brushes[COLOR_PALETTE_LIGHT_GRAY],
+        3.5,
         nullptr
     );
 }
@@ -267,43 +322,92 @@ void GraphicsModule::DrawPoses() {
 
     if(STARTING_SLAM == SLAM_OPTION_GMAPPING) {
         PoseRenderPacket* posePacket = this->currentPacket->poses;
+        PoseRenderPacket* extendedPoses = this->currentPacket->extendedPoses;
 
-        float x, y, endX, endY;
-        double theta;
+        //skips the first one (to do last, so it shows on top)
         for(int index = posePacket->valueSetSize; index < posePacket->numValues; index += posePacket->valueSetSize) {
-            x = (float)(posePacket->poses[index]);
-            y = (float)(posePacket->poses[index + 1]);
-            theta = posePacket->poses[index + 2];
-
-            deviceContext->FillEllipse(
-                D2D1::Ellipse(D2D1::Point2F(x, y), GMAPPING_PARTICLE_RADIUS, GMAPPING_PARTICLE_RADIUS),
-                this->brushes[COLOR_PALETTE_BLUE]
+            this->DrawParticle(
+                (float)(posePacket->poses[index]),
+                (float)(posePacket->poses[index + 1]),
+                posePacket->poses[index + 2],
+                COLOR_PALETTE_BLUE,
+                false
             );
 
-            endX = x + ((float)(std::cos(theta) * GMAPPING_PARTICLE_POINTER_LENGTH));
-            endY = y - ((float)(std::sin(theta) * GMAPPING_PARTICLE_POINTER_LENGTH)); //flip screen upside down
-
-            deviceContext->DrawLine(D2D1::Point2F(x, y), D2D1::Point2F(endX, endY), this->brushes[COLOR_PALETTE_BLUE], GMAPPING_PARTICLE_POINTER_WIDTH);
+            this->DrawParticle(
+                (float)(extendedPoses->poses[index]),
+                (float)(extendedPoses->poses[index + 1]),
+                extendedPoses->poses[index + 2],
+                COLOR_PALETTE_BLUE,
+                true
+            );
         }
 
         //draw most confident pose
-        //TODO puts into screen space, but gmapping already did (because we'll likely render many times between updates...)
         this->DrawRobot(TOP_LEFT, posePacket->poses[0], posePacket->poses[1], posePacket->poses[2], true);
+
+        int strongestColor = COLOR_PALETTE_BLUE;
+        if(HIGHLIGHT_STRONGEST_POSE_BOTTOM_RIGHT) {
+            strongestColor = COLOR_PALETTE_RED;
+        }
+
+        this->DrawParticle(
+            (float)(extendedPoses->poses[0]),
+            (float)(extendedPoses->poses[1]),
+            extendedPoses->poses[2],
+            strongestColor,
+            true
+        );
     }
 }
 
+void GraphicsModule::DrawNeff() {
+    wchar_t neffText[16];
+    swprintf(neffText, 16, L"%.5f", this->currentPacket->neff);
+
+    deviceContext->DrawText(
+        neffText,
+        (UINT32)wcslen(neffText),
+        neffTextFormat,
+        this->neffNumLayout,
+        this->brushes[COLOR_PALETTE_BLACK]
+    );
+}
+
+void GraphicsModule::DrawParticle(float x, float y, double theta, int color, bool bigger) {
+    //todo determine lengths/sizes/colors
+    float length = GMAPPING_PARTICLE_POINTER_LENGTH;
+    float width = GMAPPING_PARTICLE_POINTER_WIDTH;
+    float radius = GMAPPING_PARTICLE_RADIUS;
+
+    if(bigger) {
+        length = GMAPPING_BIG_PARTICLE_POINTER_LENGTH;
+        width = GMAPPING_BIG_PARTICLE_POINTER_WIDTH;
+        radius = GMAPPING_BIG_PARTICLE_RADIUS;
+    }
+
+    deviceContext->FillEllipse(
+        D2D1::Ellipse(D2D1::Point2F(x, y), radius, radius),
+        this->brushes[color]
+    );
+
+    float endX = x + ((float)(std::cos(theta) * length));
+    float endY = y - ((float)(std::sin(theta) * length)); //flip screen upside down (hence minus)
+    deviceContext->DrawLine(D2D1::Point2F(x, y), D2D1::Point2F(endX, endY), this->brushes[color], width);
+}
+
 void GraphicsModule::GiveRenderMapAddress(std::vector<float>** address) {
-    this->renderMapAddress = address;
     // (*(this->renderMapAddress)) access like this
+    this->renderMapAddress = address;
 }
 
 void GraphicsModule::GiveRenderMapGuard(std::shared_ptr<std::mutex> guard) {
-    this->guardRenderMap = guard;
     // (*(this->renderManGuard)) access like this
+    this->guardRenderMap = guard;
 }
 
-ClickInput* GraphicsModule::GetClickInput() {
-    return this->clickInput;
+UserInput* GraphicsModule::GetUserInput() {
+    return this->userInput;
 }
 
 void GraphicsModule::CreateWindowModule(HINSTANCE hInstance, int nCmdShow) {
@@ -326,7 +430,7 @@ void GraphicsModule::CreateWindowModule(HINSTANCE hInstance, int nCmdShow) {
     this->hwnd = CreateWindowExW(
         0,
         CLASS_NAME,
-        L"SLAM Simulator",
+        L"SLAM Simulator", //Only S shows up anyways. 
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
 
         (screenWidth - (rect.right - rect.left)) / 2, (screenHeight - (rect.bottom - rect.top)) / 2, rect.right - rect.left, rect.bottom - rect.top,
@@ -335,16 +439,16 @@ void GraphicsModule::CreateWindowModule(HINSTANCE hInstance, int nCmdShow) {
         NULL,
         hInstance,
         NULL
-        );
+    );
 
     if (hwnd == NULL) {
         std::cout << "Failed to create window handle." << std::endl;
         return;
     }
 
-    ClickInput* clickInput = new ClickInput();
-    SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)clickInput);
-    this->clickInput = clickInput;
+    UserInput* userInput = new UserInput();
+    SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)userInput);
+    this->userInput = userInput;
 
     ShowWindow(hwnd, nCmdShow);
 }

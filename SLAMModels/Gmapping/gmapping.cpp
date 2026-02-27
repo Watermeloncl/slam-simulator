@@ -31,7 +31,6 @@ Gmapping::Gmapping() : SLAMModule() {
     }
 
     this->guardRenderMap = std::make_shared<std::mutex>();
-
     this->history = new std::pair<double, double>[GMAPPING_HISTORY_SIZE];
 }
 
@@ -44,12 +43,10 @@ Gmapping::~Gmapping() {
     //todo add way to destroy thread
 }
 
+// Initiate slam; give particles same map
 void Gmapping::InitSlam(double startX, double startY, double startTheta) {
-    this->startX = startX;
-    this->startY = startY;
-    this->startTheta = startTheta;
+    SLAMModule::InitSlam(startX, startY, startTheta);
 
-    this->slamFinished = true;
     this->refreshParticles = false;
 
     this->particlesToRefresh = new int[GMAPPING_NUM_PARTICLES];
@@ -57,37 +54,23 @@ void Gmapping::InitSlam(double startX, double startY, double startTheta) {
         this->particlesToRefresh[i] = i;
     }
 
-    this->slamSemaphore = CreateSemaphore(NULL, 0, 1, NULL);
-    this->slamThread = std::thread(RefineEstimates, this);
-
     Sector* startingSector1 = new Sector();
-    Sector* startingSector2 = new Sector();
-    Sector* startingSector3 = new Sector();
-    Sector* startingSector4 = new Sector();
 
     for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
         this->particles[i] = new Particle();
         OccupancyGrid* startingGrid = new OccupancyGrid();
-        startingGrid->AddSector(0, 0, startingSector1);
-        startingGrid->AddSector(-1, 0, startingSector2);
-        startingGrid->AddSector(-1, -1, startingSector3);
-        startingGrid->AddSector(0, -1, startingSector4);
 
+        startingGrid->AddSector(0, 0, startingSector1);
         startingSector1->AddReference();
-        startingSector2->AddReference();
-        startingSector3->AddReference();
-        startingSector4->AddReference();
 
         this->particles[i]->map = startingGrid;
         this->particles[i]->weight = GMAPPING_STARTING_WEIGHT;
     }
 }
 
+// Check if algorithm finished; if so, clean up and resolve any lingering affects.
+//   Move particles according to odometry. If minimum time/dist, run algorithm.
 void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandTimestamp, double pointCloudTimestamp, PointCloud* pointCloud) {
-    // what was commandtimestep for? outside history of commands
-
-    // Check if slam algorithm updated particle poses
-    // Integrate moves to new poses
 
     if(!(this->slamFinished)) {
         //track history
@@ -97,21 +80,7 @@ void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandT
     } else if(this->slamFinished && !(this->backUpdated)) {
         this->backUpdated = true;
 
-        for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-            this->particles[i]->x = this->currPacket->particles[i]->x;
-            this->particles[i]->y = this->currPacket->particles[i]->y;
-            this->particles[i]->theta = this->currPacket->particles[i]->theta;
-            this->particles[i]->weight = this->currPacket->particles[i]->weight;
-        }
-
-        if(this->refreshParticles) {
-            this->FlushRefreshedParticles();
-        }
-
-        for(int i = 0; i < this->historySize; i++) {
-            this->MoveParticles(this->history[i].first, this->history[i].second);
-        }
-        this->historySize = 0;
+        this->BackUpdateParticles();
     }
 
     this->MoveParticles(changeDist, changeTheta);
@@ -141,13 +110,17 @@ void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandT
     (this->ticksSinceLastUpdate)++;
 
     if((pointCloud == nullptr) || (pointCloud->cloudSize == 0)) {
+        delete pointCloud;
         return;
     }
 
     if(!(this->slamFinished)) {
+        delete pointCloud;
         return;
     }
 
+    // Make a separate copy of every particle so the thread can be running and the particles on the
+    //   screen don't freeze.
     if((this->ticksSinceLastUpdate >= SLAM_MAXIMUM_PERIOD_COUNT) ||
        ((this->ticksSinceLastUpdate >= SLAM_MINIMUM_PERIOD_COUNT) &&
         (this->accumulatedPoseSinceLastUpdate >= SLAM_MINIMUM_DISTANCE))) {
@@ -171,9 +144,12 @@ void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandT
         this->currPacket = packet;
 
         ReleaseSemaphore(this->slamSemaphore, 1, NULL);
-    }    
+    } else {
+        delete pointCloud;
+    }
 }
 
+// Update particles according to odometry. Add noise appropriately.
 void Gmapping::MoveParticles(double changeDist, double changeTheta) {
     double noisyDist = 0;
     for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
@@ -193,77 +169,113 @@ void Gmapping::MoveParticles(double changeDist, double changeTheta) {
     }
 }
 
-void Gmapping::RefineEstimates() {
-    for(;;) {
-        WaitForSingleObject(this->slamSemaphore, INFINITE);
 
-        //add way to destroy
-        //use this->currPacket
+// The gmapping algorithm slightly "nudges" particles; move the particles back to the "nudged"
+//   position, then refresh if needed and update according to history. Includes reset of history
+void Gmapping::BackUpdateParticles() {
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+        this->particles[i]->x = this->currPacket->particles[i]->x;
+        this->particles[i]->y = this->currPacket->particles[i]->y;
+        this->particles[i]->theta = this->currPacket->particles[i]->theta;
+        this->particles[i]->weight = this->currPacket->particles[i]->weight;
+    }
 
-        // vvvv steps 3-7 vvvv
+    if(this->refreshParticles) {
+        this->FlushRefreshedParticles();
+    }
 
-        LogField* logField = new LogField();
-        logField->cloud = this->currPacket->pointCloud->cloud;
-        logField->numPoints = this->currPacket->pointCloud->cloudSize;
-        this->CreateInverseSigmas(logField);
+    for(int i = 0; i < this->historySize; i++) {
+        this->MoveParticles(this->history[i].first, this->history[i].second);
+    }
+    
+    this->historySize = 0;
+}
 
-        for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-            this->GetPoints(logField, i);
-            logField->currParticle = this->currPacket->particles[i];
+// Run the gmapping algorithm. See Resources/Notes/gmapping.txt for algorithm steps and example.
+void Gmapping::RunSlam() {
 
-            //num points will not be 0.
-            this->GetSectorRange(logField);
-            logField->likelihoodField.reserve(((logField->sectorMaxX)-(logField->sectorMinX)) * ((logField->sectorMaxY)-(logField->sectorMinY)) * (GMAPPING_SECTOR_SIZE*GMAPPING_SECTOR_SIZE));
+    // ====================
+    //      steps 3-7
+    // ====================
 
-            this->CreateGrid(logField);
-            this->PopulateLikelihoodField(logField);
+    LogField* logField = new LogField();
+    logField->cloud = this->currPacket->pointCloud->cloud;
+    logField->numPoints = this->currPacket->pointCloud->cloudSize;
+    this->CreateInverseSigmas(logField);
 
-            this->NudgeParticle(logField);
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+        this->GetPoints(logField, i);
+        logField->currParticle = this->currPacket->particles[i];
 
-            //check local samples and build L(k)
-            this->SampleParticles(logField);
+        //num points will not be 0.
+        this->GetSectorRange(logField);
+        logField->likelihoodField.reserve(((logField->sectorMaxX)-(logField->sectorMinX)) * ((logField->sectorMaxY)-(logField->sectorMinY)) * (GMAPPING_SECTOR_SIZE*GMAPPING_SECTOR_SIZE));
 
-            for(int i = 0; i < logField->numPoints; i++) {
-                delete logField->cartesianPoints[i];
-                delete logField->poses[i];
-            }
+        this->CreateGrid(logField);
+        this->PopulateLikelihoodField(logField);
 
-            delete[] logField->cartesianPoints;
-            delete[] logField->poses;
+        this->NudgeParticle(logField);
+
+        //check local samples and build L(k)
+        this->SampleParticles(logField);
+
+        for(int i = 0; i < logField->numPoints; i++) {
+            delete logField->cartesianPoints[i];
+            delete logField->poses[i];
         }
 
-        delete logField;
-        // ^^^^ steps 3-7 ^^^^
+        delete[] logField->cartesianPoints;
+        delete[] logField->poses;
+    }
 
-        // vvvv step 8 (-9) vvvv
-        double totalWeight = 0.0;
-        for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-            totalWeight += this->currPacket->particles[i]->weight;
-        }
+    delete logField;
+    // ^^^^ steps 3-7 ^^^^
 
-        double neffWeight = 0.0;
-        for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-            this->currPacket->particles[i]->weight /= totalWeight;
-            neffWeight += (this->currPacket->particles[i]->weight)*(this->currPacket->particles[i]->weight);
-        }
 
-        // particle efficiency; Neff = 1 / ( sum(final_weights^2))
-        double neff = 1.0 / neffWeight;
-        // ^^^^ step 8 (-9) ^^^^
+    // ====================
+    //   step 8 (sorta 9)
+    // ====================
 
-        // steps 12, 13
-        this->UpdateMaps();
-        this->CreateRenderCopy();
+    double totalWeight = 0.0;
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+        totalWeight += this->currPacket->particles[i]->weight;
+    }
 
-        // steps 9-11
-        if(neff < (GMAPPING_NEFF_THRESHOLD)) {
-            this->FillParticlesToRefresh();
-        }
+    double neffWeight = 0.0;
+    for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
+        this->currPacket->particles[i]->weight /= totalWeight;
+        neffWeight += (this->currPacket->particles[i]->weight)*(this->currPacket->particles[i]->weight);
+    }
 
-        this->slamFinished = true;
+    // particle efficiency; Neff = 1 / ( sum(final_weights^2))
+    double newNeff = 1.0 / neffWeight;
+
+    this->UpdateNeff(newNeff);
+    // ^^^^ step 8 (-9) ^^^^
+
+    // ====================
+    //     steps 12/13
+    // ====================
+
+    this->UpdateMaps();
+
+    int strongestIndex = this->GetStrongestParticleIndex(this->currPacket->particles);
+    std::unordered_map<std::pair<int, int>, Sector*, pair_hash>* model = 
+        this->currPacket->particles[strongestIndex]->map->GetCells();
+
+    this->CreateRenderCopy(model);
+
+    // ====================
+    //     steps 9-11
+    // ====================
+
+    if(newNeff < (GMAPPING_NEFF_THRESHOLD)) {
+        this->FillParticlesToRefresh();
     }
 }
 
+// For each particle's map, ray trace from start of laser to end, marking cells as
+//   hit or miss.
 void Gmapping::UpdateMaps() {
     double pi = MathUtilities::PI;
     double deltaRadian = ((pi*2) / SENSOR_MODEL_POINTS_PER_SCAN);
@@ -283,17 +295,25 @@ void Gmapping::UpdateMaps() {
             continue;
         }
 
-        //todo combine with getPoints()?
         std::unordered_set<std::pair<int, int>, pair_hash> misses;
         std::unordered_set<std::pair<int, int>, pair_hash> hits;
 
-        double poseStartX = particle->oldScanX;
-        double poseStartY = particle->oldScanY;
-        double poseStartTheta = particle->oldScanTheta;
+        double poseStartX = particle->currScanX;
+        double poseStartY = particle->currScanY;
+        double poseStartTheta = particle->currScanTheta;
+        double deltaX = 0.0;
+        double deltaY = 0.0;
+        double deltaTheta = 0.0;
 
-        double deltaX = (particle->currScanX - poseStartX) / SENSOR_MODEL_POINTS_PER_SCAN;
-        double deltaY = (particle->currScanY - poseStartY) / SENSOR_MODEL_POINTS_PER_SCAN;
-        double deltaTheta = (particle->currScanTheta - poseStartTheta) / SENSOR_MODEL_POINTS_PER_SCAN;
+        if(ACCOUNT_FOR_MOTION_BLUR) {
+            poseStartX = particle->oldScanX;
+            poseStartY = particle->oldScanY;
+            poseStartTheta = particle->oldScanTheta;
+
+            deltaX = (particle->currScanX - poseStartX) / SENSOR_MODEL_POINTS_PER_SCAN;
+            deltaY = (particle->currScanY - poseStartY) / SENSOR_MODEL_POINTS_PER_SCAN;
+            deltaTheta = (particle->currScanTheta - poseStartTheta) / SENSOR_MODEL_POINTS_PER_SCAN;
+        }
 
         double startRadian = ((pi*2) - (deltaRadian / 2));
 
@@ -323,6 +343,7 @@ void Gmapping::UpdateMaps() {
             startRadian -= deltaRadian;
         }
 
+        // Hits trump misses
         for(const std::pair<int, int>& hit : hits) {
             if(misses.find(hit) != misses.end()) {
                 misses.erase(hit);
@@ -337,99 +358,12 @@ void Gmapping::UpdateMaps() {
     }
 }
 
-void Gmapping::AddAffectedCells(int startX, int startY, int endX, int endY, std::unordered_set<std::pair<int, int>, pair_hash>& misses, std::unordered_set<std::pair<int, int>, pair_hash>& hits) {
-    int dx = std::abs(endX - startX);
-    int dy = std::abs(endY - startY);
-
-    int stepX = 1;
-    if(startX >= endX) {
-        stepX = -1;
-    }
-
-    int stepY = 1;
-    if(startY >= endY) {
-        stepY = -1;
-    }
-
-    int error = dx - dy;
-    int error2;
-
-    int x = startX;
-    int y = startY;
-
-    for(;;) {
-        if((x == endX) && (y == endY)) {
-            hits.insert({x, y});
-            break;
-        }
-
-        misses.insert({x, y});
-        error2 = 2 * error;
-
-        if(error2 > -dy) {
-            error -= dy;
-            x += stepX;
-        }
-
-        if(error2 < dx) {
-            error += dx;
-            y += stepY;
-        }
-    }
-}
-
-void Gmapping::CreateRenderCopy() {
-    int strongestIndex = this->GetStrongestParticleIndex(this->currPacket->particles);
-    std::unordered_map<std::pair<int, int>, Sector*, pair_hash>* model = 
-            this->currPacket->particles[strongestIndex]->map->GetCells();
-
-    std::vector<float>* newRenderMap = new std::vector<float>();
-    newRenderMap->reserve(6000);
-
-    int sectorX, sectorY;
-    double mapX, mapY, worldX, worldY;
-    std::pair<float, float> screenCords;
-    double cosTheta = std::cos(this->startTheta);
-    double sinTheta = std::sin(this->startTheta);
-
-    for(std::pair<std::pair<int, int>, Sector*> sectorInfo : *model) {
-        sectorX = sectorInfo.first.first * GMAPPING_SECTOR_SIZE;
-        sectorY = sectorInfo.first.second * GMAPPING_SECTOR_SIZE;
-
-        for(int i = 0; i < GMAPPING_SECTOR_NUM_CELLS; i++) {
-            if(sectorInfo.second->cells[i] <= 0) {
-                continue;
-            }
-
-            mapX = (sectorX + (i % GMAPPING_SECTOR_SIZE)) * GMAPPING_GRID_CELL_SIZE;
-            mapY = (sectorY + (i / GMAPPING_SECTOR_SIZE)) * GMAPPING_GRID_CELL_SIZE;
-            worldX = (mapX*cosTheta) - (mapY*sinTheta) + this->startX;
-            worldY = (mapX*sinTheta) + (mapY*cosTheta) + this->startY;
-
-            screenCords = this->XYToDips(worldX, worldY);
-
-            newRenderMap->push_back(screenCords.first);
-            newRenderMap->push_back(screenCords.second);
-            newRenderMap->push_back((float)(sectorInfo.second->cells[i]));
-        }
-    }
-
-    std::lock_guard<std::mutex> lock(*(this->guardRenderMap));
-    delete this->renderMap;
-    this->renderMap = newRenderMap;
-}
-
-std::pair<float, float> Gmapping::XYToDips(double x, double y) {
-    return {
-        (CLIENT_SCREEN_WIDTH * 0.25) + (x / MM_PER_DIP) + 1,
-        (CLIENT_SCREEN_HEIGHT * 0.25) + (y / MM_PER_DIP * -1) + 1
-    };
-}
-
+// Updates the positions the graphics will use to draw particles
 void Gmapping::UpdatePoses() {
     std::lock_guard<std::mutex> lock(this->guardPoses);
 
     PoseRenderPacket* newPacket = new PoseRenderPacket(GMAPPING_NUM_PARTICLES, 3);
+    PoseRenderPacket* newExtendedPacket = new PoseRenderPacket(GMAPPING_NUM_PARTICLES, 3);
     int strongestIndex = this->GetStrongestParticleIndex(this->particles);
 
     std::pair<double, double> screenCords;
@@ -442,6 +376,10 @@ void Gmapping::UpdatePoses() {
     screenCords = this->XYToDips(worldX, worldY);
 
     newPacket->AddPose({screenCords.first, screenCords.second, this->particles[strongestIndex]->theta + this->startTheta});
+    newExtendedPacket->AddPose({worldX, worldY, this->particles[strongestIndex]->theta + this->startTheta});
+
+    double worldXTotal = worldX;
+    double worldYTotal = worldY;
 
     for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
         if(i == strongestIndex) {
@@ -451,13 +389,29 @@ void Gmapping::UpdatePoses() {
         worldX = ((this->particles[i]->x)*cosTheta)-((this->particles[i]->y)*sinTheta) + this->startX;
         worldY = ((this->particles[i]->x)*sinTheta)+((this->particles[i]->y)*cosTheta) + this->startY;
         screenCords = this->XYToDips(worldX, worldY);
-        
+
+        worldXTotal += worldX;
+        worldYTotal += worldY;
+
         newPacket->AddPose({screenCords.first, screenCords.second, this->particles[i]->theta + this->startTheta});
+        newExtendedPacket->AddPose({worldX, worldY, this->particles[i]->theta + this->startTheta});
     }
 
-    this->ReplacePoses(newPacket);
+    worldXTotal /= GMAPPING_NUM_PARTICLES;
+    worldYTotal /= GMAPPING_NUM_PARTICLES;
+
+    double baseX = CLIENT_SCREEN_WIDTH * 0.75;
+    double baseY = CLIENT_SCREEN_HEIGHT * 0.75;
+
+    for(int i = 0; i < newExtendedPacket->numValues; i += 3) {
+        newExtendedPacket->poses[i] = baseX + (newExtendedPacket->poses[i] - worldXTotal);
+        newExtendedPacket->poses[i + 1] = baseY - (newExtendedPacket->poses[i + 1] - worldYTotal);
+    }
+
+    this->ReplacePoses(newPacket, newExtendedPacket);
 }
 
+// Returns the particle with the largest weight. Call before normalizing
 int Gmapping::GetStrongestParticleIndex(Particle** particles) {
     int index = 0;
     double maxWeight = -1;
@@ -471,6 +425,10 @@ int Gmapping::GetStrongestParticleIndex(Particle** particles) {
     return index;
 }
 
+// Creates an array for computational speed. Part of the scoring equation for P(Z)
+//   requires a sigma for that laser; but it's based on distance. Sigma is found
+//   per laser point, and capped at half a grid cell size. Calculates that entire
+//   piece of the equation, -1/(2*sigma^2).
 void Gmapping::CreateInverseSigmas(LogField* logField) {
     double* newSigmas = new double[logField->numPoints]();
     std::fill_n(newSigmas, logField->numPoints, GMAPPING_SCAN_MATCHING_DEFAULT_SIGMA);
@@ -489,6 +447,10 @@ void Gmapping::CreateInverseSigmas(LogField* logField) {
     logField->inverseSigmas = newSigmas;
 }
 
+// Given a point cloud and particle, create a list of cartesian points corresponding
+//   to the transformation of those polar points. Accounts for noise using that
+//   particle's pose. Creates a second list of all laser starting points, or, the pose
+//   of that particle at every given laser firing point.
 void Gmapping::GetPoints(LogField* logField, int particleIndex) {
     logField->currParticle = this->currPacket->particles[particleIndex];
     Particle* particle = logField->currParticle;
@@ -498,17 +460,26 @@ void Gmapping::GetPoints(LogField* logField, int particleIndex) {
         return;
     }
 
+    double poseStartX = particle->currScanX;
+    double poseStartY = particle->currScanY;
+    double poseStartTheta = particle->currScanTheta;
+
+    double deltaX = 0.0;
+    double deltaY = 0.0;
+    double deltaTheta = 0.0;
+
+    if(ACCOUNT_FOR_MOTION_BLUR) {
+        poseStartX = particle->oldScanX;
+        poseStartY = particle->oldScanY;
+        poseStartTheta = particle->oldScanTheta;
+
+        deltaX = (particle->currScanX - poseStartX) / SENSOR_MODEL_POINTS_PER_SCAN;
+        deltaY = (particle->currScanY - poseStartY) / SENSOR_MODEL_POINTS_PER_SCAN;
+        deltaTheta = (particle->currScanTheta - poseStartTheta) / SENSOR_MODEL_POINTS_PER_SCAN;
+    }
+
     double pi = MathUtilities::PI;
     double deltaRadian = ((pi*2) / SENSOR_MODEL_POINTS_PER_SCAN);
-
-    double poseStartX = particle->oldScanX;
-    double poseStartY = particle->oldScanY;
-    double poseStartTheta = particle->oldScanTheta;
-
-    double deltaX = (particle->currScanX - poseStartX) / SENSOR_MODEL_POINTS_PER_SCAN;
-    double deltaY = (particle->currScanY - poseStartY) / SENSOR_MODEL_POINTS_PER_SCAN;
-    double deltaTheta = (particle->currScanTheta - poseStartTheta) / SENSOR_MODEL_POINTS_PER_SCAN;
-
     double startRadian = ((pi*2) - (deltaRadian / 2));
 
     int cloudPoint = 0;
@@ -539,7 +510,10 @@ void Gmapping::GetPoints(LogField* logField, int particleIndex) {
     logField->poses = returnPoses;
 }
 
-// include safety of +- 1 both x/y
+// Finds the minimum and maximum cell for the point cloud, and pulls the
+//   sectors associated with those cells. Used to determine what sectors
+//   should be referenced when scan matching. Include a sector safety of
+//   +- 1 in both x/y.
 void Gmapping::GetSectorRange(LogField* logField) {
     double minX = DBL_MAX;
     double maxX = -DBL_MAX;
@@ -567,6 +541,9 @@ void Gmapping::GetSectorRange(LogField* logField) {
     logField->offsetY = logField->sectorMinY * -GMAPPING_SECTOR_MM_SIZE;
 }
 
+// Creates a 2D grid to hold a likelihood field based on the sectors associated with
+//   the full range of cells found in the point cloud. Empty sectors are treated as
+//   misses; if they haven't been generated, no laser has been there.
 void Gmapping::CreateGrid(LogField* logField) {
     logField->sectorsWidth = logField->sectorMaxX - logField->sectorMinX + 1;
     logField->sectorsHeight = logField->sectorMaxY - logField->sectorMinY + 1;
@@ -603,8 +580,9 @@ void Gmapping::CreateGrid(LogField* logField) {
     }
 }
 
-// Euclidean Distance Transform using Felzenszwalb-Huttenlocher (FH) algorithm
-// Do 1D distance transform first on rows, then on cols. Expects a grid of all INF except obstacle cells, which have 0
+// Euclidean Distance Transform using Felzenszwalb-Huttenlocher (FH) algorithm.
+// Do 1D distance transform first on rows, then on cols. Expects a grid of all INF
+//   except obstacle cells, which have 0.
 void Gmapping::PopulateLikelihoodField(LogField* logField) {
     // truncate distances?
     logField->cellsWidth = logField->sectorsWidth * GMAPPING_SECTOR_SIZE;
@@ -645,10 +623,13 @@ void Gmapping::PopulateLikelihoodField(LogField* logField) {
     }
 }
 
-// Get's the lower envelope of a set of parabolas, each representing the closeness of that index's obstacle
-// inDists represents distances gained during previous pass
-// result is output
-// n is size of arrays
+// Get's the lower envelope of a set of parabolas, each representing the closeness of that index's obstacle.
+// - inDists represents distances gained during previous pass
+// - result is output
+// - n is size of arrays
+// 
+// For every y value within the lower envelope, it's index's closest obstacle is found
+//    through the parabola associated with that part of the lower envelope. 
 void Gmapping::DistanceTransform1D(const std::vector<double>& inDists, std::vector<double>& result, int n) {
     std::vector<int> v(n);      // locations of parabolas in lower envelope
     std::vector<double> z(n + 1); // locations of boundaries between parabolas, one extra for upper bound
@@ -685,6 +666,9 @@ void Gmapping::DistanceTransform1D(const std::vector<double>& inDists, std::vect
     }
 }
 
+// Check each position just around the particle along 1D dimensions; if the scan would
+//   better "match" that position, move the particle in that direction. Nudge amount is
+//   based on noise. Note: position will be further fine tuned via SampleParticles().
 void Gmapping::NudgeParticle(LogField* logField) {
 
     // original, +x, -x, +y, -y, +t, -t
@@ -711,6 +695,7 @@ void Gmapping::NudgeParticle(LogField* logField) {
             break;
         }
 
+        // Nudge kept separate from pose for laser adjustment
         switch(index) {
             case 0:
                 break;
@@ -736,6 +721,15 @@ void Gmapping::NudgeParticle(LogField* logField) {
     }
 }
 
+// Finds covariance matrix L(k), representing the sums of:
+//  - P(Zt | Xt, m)
+//  - P(Xt | Xt-1, u)
+//
+// For every combination of +-x/y/theta. Each probability gives that sample a "weight".
+//   Final pose for the particle is a weighted average between all samples probabilties.
+//   Note: Calculating e^-450 is far beyond the width of a double. Scores are "normalized"
+//   by adding the highest log amount to each sample. Particles are then given a final
+//   weight based on their samples average weight. (Representing Mu)
 void Gmapping::SampleParticles(LogField* logField) {
     //neighbors to sample
     double tTerms[3] = {0, GMAPPING_SCAN_MATCHING_NUDGE_JUMP, -GMAPPING_SCAN_MATCHING_NUDGE_JUMP};
@@ -758,7 +752,7 @@ void Gmapping::SampleParticles(LogField* logField) {
         }
     }
 
-    //sorta normalize with maxPower; brings probabilities into calculatable range
+    //sorta normalize with maxPower; brings probabilities into calculable range
     for(int i = 0; i < 27; i++) {
         scanScore[i] -= maxPower;
     }
@@ -772,8 +766,6 @@ void Gmapping::SampleParticles(LogField* logField) {
     double totalSinTheta = 0.0;
     double totalCosTheta = 0.0;
 
-    // std::cout << "================================== p scores ==============================" << std::endl;
-
     for(int i = 0; i < 3; i++) { // theta
         for(int j = 0; j < 3; j++) { // y
             for(int k = 0; k < 3; k++) { // x
@@ -781,8 +773,6 @@ void Gmapping::SampleParticles(LogField* logField) {
 
                 scanScore[index] = std::exp(scanScore[index]);
                 motionScore[index] = std::exp(motionScore[index]);
-
-                // std::cout << scanScore[index] << " " << motionScore[index] << std::endl;
 
                 sampleWeight = scanScore[index]*motionScore[index];
                 totalWeight += sampleWeight;
@@ -805,8 +795,12 @@ void Gmapping::SampleParticles(LogField* logField) {
     }
 }
 
-//TODO might need to change motion_model_forward_deviation
-//TODO doesn't work for turning yet (gets nan)
+// Based on total odometry reading, how far it should have moved/twisted, calculates the
+//   probability the particle could be at that particular pose. Based on Mahalanobis
+//   distance, using equation e^(-0.5*(d^2 / (2*sigma^2))). Theta is turned into rotational error,
+//   and compounded into both distance and sigma, so:
+//
+//   e^(-0.5*((d^2 / (2*sigma^2)) + (atan2(sin(thetaDiff), cos(thetaDiff)))))
 double Gmapping::ScoreParticlePose(LogField* logField, double deltaX, double deltaY, double deltaTheta) {
     // based on mahalanobis distance: e^-(diff^2 / 2*sigma^2)
     double xDiff = logField->currParticle->currScanX - logField->currParticle->oldScanX + deltaX + logField->currParticle->nudgeX;
@@ -819,8 +813,8 @@ double Gmapping::ScoreParticlePose(LogField* logField, double deltaX, double del
     double thetaDiff = thetaTravelled - (this->currPacket->expTheta);
     double thetaError = std::atan2(std::sin(thetaDiff), std::cos(thetaDiff));
 
+    // sigmas have a floor of base_deviation. The model tends to converge better with at least some noise.
     double distSigma = deltaDist * MOTION_MODEL_FORWARD_DEVIATION + MOTION_MODEL_BASE_FORWARD_DEVIATION;
-
     double sigmaRotation = (thetaTravelled * MOTION_MODEL_ROTATION);
     double sigmaVeer = (deltaDist * MOTION_MODEL_FORWARD_ROTATION_DEVIATION);
     double thetaSigma = std::sqrt(sigmaRotation*sigmaRotation + sigmaVeer*sigmaVeer + MOTION_MODEL_BASE_ROTATION_DEVIATION*MOTION_MODEL_BASE_ROTATION_DEVIATION);
@@ -828,13 +822,18 @@ double Gmapping::ScoreParticlePose(LogField* logField, double deltaX, double del
     return -0.5 * (((distDiff*distDiff) / (distSigma*distSigma)) + ((thetaError*thetaError) / (thetaSigma*thetaSigma)));
 }
 
-//todo: how to deal with a point if it goes off the grid? should we worry about that?
+// For every point within a lidar cloud, alter it according to nudge amount. Count each
+//   point who's cell represents a wall (above threshold). Only counts every Xth laser.
+//   Based on Mahalanobis distance.
+// Note: If a point isn't found on the grid, it isn't handled. I haven't run into an issue,
+//   though you think it'd happen at some point.
 double Gmapping::ScoreRelativePosition(LogField* logField, double deltaX, double deltaY, double deltaTheta) {
     //given a set of points and a set of changes,
     //   alter all the points in the cloud accordingly and count up the score
 
-    // based on mahalanobis distance: e^-(d^2 / (2*sigma^2))
-    // the log of that can be added together to get the same idea. Just looking for direction
+    // Based on mahalanobis distance: e^-(d^2 / (2*sigma^2)). Note, the e^ part isn't calculated.
+    // The log of that can be added together to get the same idea. We just need direction, we save
+    // the log calculations for elsewhere.
 
     double score = 0;
     double cosTheta = std::cos(deltaTheta + logField->currParticle->nudgeTheta);
@@ -862,15 +861,6 @@ double Gmapping::ScoreRelativePosition(LogField* logField, double deltaX, double
         x += deltaX + logField->currParticle->nudgeX;
         y += deltaY + logField->currParticle->nudgeY;
 
-        // x = (logField->cartesianPoints[i]->x) + deltaX + logField->currParticle->nudgeX;
-        // y = (logField->cartesianPoints[i]->y) + deltaY + logField->currParticle->nudgeY;
-
-        // if(deltaTheta) {
-        //     tempX = x;
-        //     x = tempX*cosTheta - y*sinTheta;
-        //     y = tempX*sinTheta + y*cosTheta;
-        // }
-
         //convert to likelihood field from cartesian world
         x += logField->offsetX;
         y += logField->offsetY;
@@ -881,7 +871,8 @@ double Gmapping::ScoreRelativePosition(LogField* logField, double deltaX, double
     return score;
 }
 
-// Choose with replacement (uses comb randomness; guarentees the best particles get chosen at least once)
+// Choose with replacement (uses comb randomness; guarantees the best particles
+//  get chosen at least once). Determines which particles are replaced and which are kept.
 void Gmapping::FillParticlesToRefresh() {
 
     // Pick particles for refresh
@@ -956,6 +947,8 @@ void Gmapping::FillParticlesToRefresh() {
     this->refreshParticles = true;
 }
 
+// Finish changing values such that old particles replicate new particles data.
+//   This is in a different function, different place for thread safety.
 void Gmapping::FlushRefreshedParticles() {
     Particle* sourceParticle;
     Particle* destinationParticle;

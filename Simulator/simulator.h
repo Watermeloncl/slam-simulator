@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include "..\Graphics\graphics.h"
+#include "..\Listener\userInput.h"
 #include "..\Graphics\renderPacket.h"
 #include "..\World\world.h"
 #include "..\Models\robotModel.h"
@@ -17,6 +18,10 @@ private:
     AIModule* aiModule = nullptr;
     SLAMModule* slamModule = nullptr;
     
+    UserInput* userInput = nullptr;
+
+    bool paused = false;
+
 public:
     Simulator(HINSTANCE hInstance, int nCmdShow);
     ~Simulator();

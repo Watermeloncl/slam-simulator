@@ -3,13 +3,16 @@
 #include "..\SLAMModels\MapRepresentation\poseRenderPacket.h"
 #include "..\config.h"
 
-RenderPacket::RenderPacket(double realX, double realY, double realTheta, OPoint** pointCloud, PoseRenderPacket* poses) {
+RenderPacket::RenderPacket(double realX, double realY, double realTheta, OPoint** pointCloud, PoseRenderPacket* poses, PoseRenderPacket* extendedPoses, double neff) {
     this->realX = realX;
     this->realY = realY;
     this->realTheta = realTheta;
 
     this->pointCloud = pointCloud;
     this->poses = poses;
+    this->extendedPoses = extendedPoses;
+    
+    this->neff = neff;
 }
 
 // does not currently delete grid

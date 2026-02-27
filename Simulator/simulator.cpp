@@ -27,6 +27,10 @@ Simulator::Simulator(HINSTANCE hInstance, int nCmdShow) {
 
     this->robotModel = new RobotModel();
     this->aiModule = new AIModule();
+    
+    if(START_AI_WITH_STOP) {
+        this->aiModule->SetStarted();
+    }
 
     if(STARTING_SLAM == SLAM_OPTION_EKF) {
         this->slamModule = new EKF();
@@ -64,17 +68,18 @@ void Simulator::RunMainLoop() {
     this->slamModule->InitSlam(this->robotModel->GetRealX(), this->robotModel->GetRealY(), this->robotModel->GetRealTheta());
     this->graphicsModule->GiveRenderMapAddress(this->slamModule->GetRenderMapAddress());
     this->graphicsModule->GiveRenderMapGuard(this->slamModule->GetRenderMapGuard());
-    this->aiModule->GiveClickInput(this->graphicsModule->GetClickInput());
+    this->userInput = this->graphicsModule->GetUserInput();
+    this->aiModule->GiveUserInput(this->userInput);
     this->aiModule->GiveRobotModel(this->robotModel);
-
-    //set slam algorithm here?
 
     RenderPacket* renderPacket = new RenderPacket(
         this->robotModel->GetRealX(),
         this->robotModel->GetRealY(),
         this->robotModel->GetRealTheta(),
         nullptr,
-        nullptr
+        nullptr,
+        nullptr,
+        GMAPPING_NUM_PARTICLES
     );
             
     this->graphicsModule->UpdateRenderInfo(renderPacket);
@@ -88,22 +93,21 @@ void Simulator::RunMainLoop() {
             DispatchMessage(&msg);
         }
 
-        //act on messages
-        // - pause (space)
-        // - reset (r)
-        // - change map and reset (m)
-        // - probability toggle (p)
-        // - algorithm change (a)
-        // - Change Trajectory (click top right)
+        if(userInput->GetSpaced()) {
+            userInput->SetUnspaced();
+            this->paused = !(this->paused);
+        }
 
         now = SchedClock::now();
         elapsed = now - lastTime;
         lastTime = now;
-        motionAccumulator += elapsed.count();
-        scanAccumulator += elapsed.count();
-        mainAccumulator += elapsed.count();
-        totalAccumulator += elapsed.count();
 
+        if(!(this->paused)) {
+            motionAccumulator += elapsed.count();
+            scanAccumulator += elapsed.count();
+            mainAccumulator += elapsed.count();
+            totalAccumulator += elapsed.count();
+        }
 
         while(motionAccumulator >= motionPeriod) {
             this->aiModule->UpdateAI();
@@ -123,9 +127,8 @@ void Simulator::RunMainLoop() {
         }
 
         while(mainAccumulator >= mainPeriod) {
-            //todo get updated graphics
             PoseRenderPacket* poses = this->slamModule->GetPoses();
-            //Trajectory = UpdateTrajectory();
+            PoseRenderPacket* extendedPoses = this->slamModule->GetExtendedPoses();
 
             // save cpu cycles by not making copy
             OPoint** renderPointCloud = this->robotModel->CopyLatestRenderScan();
@@ -135,7 +138,9 @@ void Simulator::RunMainLoop() {
                 this->robotModel->GetRealY(),
                 this->robotModel->GetRealTheta(),
                 renderPointCloud,
-                poses
+                poses,
+                extendedPoses,
+                this->slamModule->GetNeff()
             );
             
             this->graphicsModule->UpdateRenderInfo(renderPacket);

@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "mathUtilities.h"
+#include "..\World\Objects\opoint.h"
 #include "utilities.h"
 
 // All theta's are expected in radians.
@@ -58,4 +59,10 @@ void MathUtilities::SampleCommand(RobotCommand command, double currTheta, double
             changeDist = 0;
             break;
     }
+}
+
+double MathUtilities::DistTwoPoints(OPoint* point1, OPoint* point2) {
+    double deltaX = point1->x - point2->x;
+    double deltaY = point1->y - point2->y;
+    return std::sqrt(deltaX*deltaX + deltaY*deltaY);
 }

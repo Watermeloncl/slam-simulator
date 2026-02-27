@@ -4,14 +4,14 @@
 #include <utility>
 #include <vector>
 
-#include "..\Listener\clickInput.h"
+#include "..\Listener\userInput.h"
 #include "..\Models\robotModel.h"
 #include "..\config.h"
 
 class AIModule {
 public:
 private:
-    ClickInput* clickInput = nullptr;
+    UserInput* userInput = nullptr;
     bool started = false;
 
     std::vector<std::pair<RobotCommand, int>> commandSequence;
@@ -23,11 +23,13 @@ public:
     AIModule();
     ~AIModule();
 
-    void GiveClickInput(ClickInput* clickInput);
+    void GiveUserInput(UserInput* userInput);
     void GiveRobotModel(RobotModel* robotModel);
 
     void UpdateAI();
     RobotCommand GetCommand();
+
+    void SetStarted();
 private:
 
 };
