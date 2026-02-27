@@ -68,6 +68,7 @@ void Gmapping::InitSlam(double startX, double startY, double startTheta) {
     }
 }
 
+// (Step 1)
 // Check if algorithm finished; if so, clean up and resolve any lingering affects.
 //   Move particles according to odometry. If minimum time/dist, run algorithm.
 void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandTimestamp, double pointCloudTimestamp, PointCloud* pointCloud) {
@@ -149,6 +150,7 @@ void Gmapping::UpdateSlam(double changeDist, double changeTheta, double commandT
     }
 }
 
+// (Step 2)
 // Update particles according to odometry. Add noise appropriately.
 void Gmapping::MoveParticles(double changeDist, double changeTheta) {
     double noisyDist = 0;
@@ -243,7 +245,7 @@ void Gmapping::RunSlam() {
 
     double neffWeight = 0.0;
     for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
-        this->currPacket->particles[i]->weight /= totalWeight;
+        this->currPacket->particles[i]->weight /= totalWeight; // (Step 8)
         neffWeight += (this->currPacket->particles[i]->weight)*(this->currPacket->particles[i]->weight);
     }
 
@@ -263,6 +265,7 @@ void Gmapping::RunSlam() {
     std::unordered_map<std::pair<int, int>, Sector*, pair_hash>* model = 
         this->currPacket->particles[strongestIndex]->map->GetCells();
 
+    // (Step 13, defined in slam.cpp)
     this->CreateRenderCopy(model);
 
     // ====================
@@ -274,6 +277,7 @@ void Gmapping::RunSlam() {
     }
 }
 
+// (Step 12)
 // For each particle's map, ray trace from start of laser to end, marking cells as
 //   hit or miss.
 void Gmapping::UpdateMaps() {
@@ -631,7 +635,7 @@ void Gmapping::PopulateLikelihoodField(LogField* logField) {
 // For every y value within the lower envelope, it's index's closest obstacle is found
 //    through the parabola associated with that part of the lower envelope. 
 void Gmapping::DistanceTransform1D(const std::vector<double>& inDists, std::vector<double>& result, int n) {
-    std::vector<int> v(n);      // locations of parabolas in lower envelope
+    std::vector<int> v(n);        // locations of parabolas in lower envelope
     std::vector<double> z(n + 1); // locations of boundaries between parabolas, one extra for upper bound
     
     int k = 0; // parabola num
@@ -666,6 +670,7 @@ void Gmapping::DistanceTransform1D(const std::vector<double>& inDists, std::vect
     }
 }
 
+// (Step 3)
 // Check each position just around the particle along 1D dimensions; if the scan would
 //   better "match" that position, move the particle in that direction. Nudge amount is
 //   based on noise. Note: position will be further fine tuned via SampleParticles().
@@ -721,6 +726,7 @@ void Gmapping::NudgeParticle(LogField* logField) {
     }
 }
 
+// (Step 4)
 // Finds covariance matrix L(k), representing the sums of:
 //  - P(Zt | Xt, m)
 //  - P(Xt | Xt-1, u)
@@ -787,10 +793,12 @@ void Gmapping::SampleParticles(LogField* logField) {
     }
 
     if(totalWeight > 0) {
+        // (Step 7)
         logField->currParticle->x = totalX / totalWeight;
         logField->currParticle->y = totalY / totalWeight;
         logField->currParticle->theta = std::atan2(totalSinTheta, totalCosTheta);
 
+        // (Step 5)
         logField->currParticle->weight *= totalWeight;
     }
 }
@@ -871,6 +879,7 @@ double Gmapping::ScoreRelativePosition(LogField* logField, double deltaX, double
     return score;
 }
 
+// (Step 9 pt. 1, Step 10)
 // Choose with replacement (uses comb randomness; guarantees the best particles
 //  get chosen at least once). Determines which particles are replaced and which are kept.
 void Gmapping::FillParticlesToRefresh() {
@@ -940,6 +949,7 @@ void Gmapping::FillParticlesToRefresh() {
         this->currPacket->particles[unfulfilled[i]]->map->FillSectors(this->currPacket->particles[this->particlesToRefresh[unassigned[i]]]->map->GetSectors());
     }
 
+    // (Step 11)
     for(int i = 0; i < GMAPPING_NUM_PARTICLES; i++) {
         this->currPacket->particles[i]->weight = GMAPPING_STARTING_WEIGHT;
     }
@@ -947,6 +957,7 @@ void Gmapping::FillParticlesToRefresh() {
     this->refreshParticles = true;
 }
 
+// (Step 9 pt. 2)
 // Finish changing values such that old particles replicate new particles data.
 //   This is in a different function, different place for thread safety.
 void Gmapping::FlushRefreshedParticles() {

@@ -5,6 +5,8 @@ Comments can be found in gmapping.cpp denoting functions associated with the ste
 1. Particles are given by pose X, Y, Theta
 2. Move particles according to the motion model. Add noise.
 
+(If total odometry reading isn't above threshold, skip all future steps.)
+
 3. "Nudge" particles, using a capped local search to maximize likelihood field score. (Either hit cap of number-of-iterations or max-distance-nudged.) Check every direction, move pose to highest score, repeat.
 - (shelved) If it didn't move, shrink distance nudged.
 - (shelved) Use Bilinear Interpolation to determine weighted distance between the 4 cells surrounding the hit point, to find a likelihood field score.
@@ -14,11 +16,11 @@ If scan matching fails, rely soley on motion model.
 
 5. Calculate the new weight of each particle, which is its old weight * covariance matrix
 
-(shelved) 6. If new weight is 0 or rounds to 0, make pose simply based on raw odometry, and give a low penalty weight (caused impossible situation, like in a wall)
+(skipped) 6. If new weight is 0 or rounds to 0, make pose simply based on raw odometry, and give a low penalty weight (caused impossible situation, like in a wall)
 
 7. Calculate the new pose as a an average center of gravity based on samples and L(k) (S(a) * L(ka) + ... / covariance)
 
-8. Normalize weights of samples
+8. Normalize weights of particles
 
 9. If Neff is below a certain value (Neff threshold, like N/2) resample with replacement
 

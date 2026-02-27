@@ -135,6 +135,7 @@ void SLAMModule::UpdateNeff(double newNeff) {
     this->neff = newNeff;
 }
 
+// (Step 13 of Gmapping)
 // Given a set of sectors associated with a map, find the DIP location of each
 //   and mark it as a pose to give to graphics for rendering.
 void SLAMModule::CreateRenderCopy(std::unordered_map<std::pair<int, int>, Sector*, pair_hash>* model) {
