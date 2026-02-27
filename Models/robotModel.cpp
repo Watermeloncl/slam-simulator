@@ -31,13 +31,23 @@ void RobotModel::InitializeRobot(Map* map) {
     this->motionModel->GiveMap(map);
     this->sensorModel->GiveMotionModel(this->motionModel);
 
-    int startIndex = 5;//Utilities::GetRandomInt(0, map->GetStartsSize() - 1);
 
-    this->motionModel->SetStartPosition(
-        map->GetStart(startIndex)->x,
-        map->GetStart(startIndex)->y,
-        0//(double)Utilities::GetRandomInt(0, 6)
-    );
+    if(RANDOM_START) {
+        int startIndex = Utilities::GetRandomInt(0, map->GetStartsSize() - 1);
+
+        this->motionModel->SetStartPosition(
+            map->GetStart(startIndex)->x,
+            map->GetStart(startIndex)->y,
+            (double)Utilities::GetRandomInt(0, 6)
+        );
+    } else {
+        this->motionModel->SetStartPosition(
+            map->GetStart(0)->x,
+            map->GetStart(0)->y,
+            0
+        );
+    }
+
 
     this->sensorModel->InitSensor();
 }

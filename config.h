@@ -4,7 +4,16 @@
 #include <utility>
 #include <cmath>
 
+
 // Feel free to organize this differently.
+
+////////////////////////////////////////////////
+////                Controls                ////
+////////////////////////////////////////////////
+
+// Click top right: send robot appropriate bearing/heading to move robot
+// Spacebar: pause/unpause (note, does not pause threads, though they will run at correct periods when unpaused again)
+
 
 ////////////////////////////////////////////////
 ////          Required definitions          ////
@@ -39,10 +48,11 @@ const int STARTING_MAP = 1;
 // Optional Toggles
 const bool SHOW_POSSIBLE_STARTING_LOCATIONS = false;
 const bool HIGHLIGHT_STRONGEST_POSE_BOTTOM_RIGHT = true;
-const bool ACCOUNT_FOR_MOTION_BLUR = true;  // Just affects algorithm; sensor attempts to account regardless
+const bool ACCOUNT_FOR_MOTION_BLUR = true;  // Just affects algorithm; sensor attempts to account regardless (you will note a small difference)
 const bool START_AI_WITH_STOP = true;       // AI starts with a single STOP command.
 const bool HARD_OVERRIDE_COMMANDS = false;  // Toggle true to override all commands with a constant value, OVERRIDE
 const RobotCommand OVERRIDE = RobotCommand::LEFT;
+const bool RANDOM_START = true;
 
 // Sensor Model Details; moves in 360 degrees
 const int SENSOR_MODEL_POINTS_PER_SCAN = 1455;       // 1455 (8000 / 5.5Hz)
