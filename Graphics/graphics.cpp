@@ -326,13 +326,15 @@ void GraphicsModule::DrawPoses() {
 
         //skips the first one (to do last, so it shows on top)
         for(int index = posePacket->valueSetSize; index < posePacket->numValues; index += posePacket->valueSetSize) {
-            this->DrawParticle(
-                (float)(posePacket->poses[index]),
-                (float)(posePacket->poses[index + 1]),
-                posePacket->poses[index + 2],
-                COLOR_PALETTE_BLUE,
-                false
-            );
+            if(SHOW_PARTICLES_TOP_LEFT) {
+                this->DrawParticle(
+                    (float)(posePacket->poses[index]),
+                    (float)(posePacket->poses[index + 1]),
+                    posePacket->poses[index + 2],
+                    COLOR_PALETTE_BLUE,
+                    false
+                );
+            }
 
             this->DrawParticle(
                 (float)(extendedPoses->poses[index]),

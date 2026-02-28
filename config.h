@@ -47,6 +47,7 @@ const int STARTING_MAP = 1;
 
 // Optional Toggles
 const bool SHOW_POSSIBLE_STARTING_LOCATIONS = false;
+const bool SHOW_PARTICLES_TOP_LEFT = false;
 const bool HIGHLIGHT_STRONGEST_POSE_BOTTOM_RIGHT = true;
 const bool ACCOUNT_FOR_MOTION_BLUR = true;  // Just affects algorithm; sensor attempts to account regardless (you will note a small difference)
 const bool START_AI_WITH_STOP = true;       // AI starts with a single STOP command.

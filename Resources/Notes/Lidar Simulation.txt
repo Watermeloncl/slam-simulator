@@ -1,3 +1,6 @@
+================================================
+     How the lidar sensor can be simulated
+================================================
 
 Given a robot with pose (x, y, theta) and SlamTec RPLIDAR-A1
 
