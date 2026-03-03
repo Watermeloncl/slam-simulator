@@ -6,6 +6,13 @@
 
 
 // Feel free to organize this differently.
+// Currently split into:
+// - Controls
+// - Required definitions
+// - Feel free to change any of these
+// - Changeable; but be wary
+// - Change at your own risk
+// - Do not touch any parameters here!
 
 ////////////////////////////////////////////////
 ////                Controls                ////
@@ -13,7 +20,6 @@
 
 // Click top right: send robot appropriate bearing/heading to move robot
 // Spacebar: pause/unpause (note, does not pause threads, though they will run at correct periods when unpaused again)
-
 
 ////////////////////////////////////////////////
 ////          Required definitions          ////
