@@ -81,12 +81,12 @@ const std::pair<double, double> SENSOR_MODEL_ACCURACY[SENSOR_MODEL_ACCURACY_TIER
 const double SENSOR_MODEL_RANGE_RESOLUTION = 0.01;
 
 // Period details (except sensor, which is given by SENSOR_MODEL_TIME_PER_SCAN)
-const double GRAPHICS_FPS = 1.0 / 60.0;           // (1/60) Also can affect how often motion is updated
-const double MOTION_PERIOD = GRAPHICS_FPS;        // (1/60) No point having it faster than graphics; but ideally as fast as possible
-const int SLAM_MINIMUM_PERIOD_COUNT = 11;         // (11) At least how many frames must pass before the algorithm considers running (num slam_period). Consider keeping at a minimum of scan period (10.9, or 11)
-const int SLAM_MAXIMUM_PERIOD_COUNT = 60;         // (60) The maximum frames that can pass before the algorithm must run
-const double SLAM_MINIMUM_DISTANCE_PERCENT = 0.8; // (0.8) Percentage of maximum movement within minimum period count (rotation scaled appropriately);
-                                                  //   helper equation defined lower as SLAM_MINIMUM_DISTANCE (0.8 == 80%; 1.5 == 150%)
+const double GRAPHICS_FPS = 1.0 / 60.0;                                            // (1/60) How often are graphics updated? Also can affect how often motion is updated
+const double MOTION_PERIOD = GRAPHICS_FPS;                                         // (1/60) No point having it faster than graphics; but ideally as fast as possible
+const int SLAM_MINIMUM_PERIOD_COUNT = std::ceil(60 * SENSOR_MODEL_TIME_PER_SCAN);  // (11) At least how many frames must pass before the algorithm considers running (num slam_period). Consider keeping at a minimum of scan period (10.9, or 11)
+const int SLAM_MAXIMUM_PERIOD_COUNT = 1/GRAPHICS_FPS;                              // (60) The maximum frames that can pass before the algorithm must run
+const double SLAM_MINIMUM_DISTANCE_PERCENT = 0.8;                                  // (0.8) Percentage of maximum movement within minimum period count (rotation scaled appropriately);
+                                                                                   //   helper equation defined lower as SLAM_MINIMUM_DISTANCE (0.8 == 80%; 1.5 == 150%)
 
 
 // Motion Model Details (suggested noise below in multi-line comment)
