@@ -588,7 +588,6 @@ void Gmapping::CreateGrid(LogField* logField) {
 // Do 1D distance transform first on rows, then on cols. Expects a grid of all INF
 //   except obstacle cells, which have 0.
 void Gmapping::PopulateLikelihoodField(LogField* logField) {
-    // truncate distances?
     logField->cellsWidth = logField->sectorsWidth * GMAPPING_SECTOR_SIZE;
     logField->cellsHeight = logField->sectorsHeight * GMAPPING_SECTOR_SIZE;
     int width = logField->cellsWidth;
@@ -978,7 +977,5 @@ void Gmapping::FlushRefreshedParticles() {
         destinationParticle->x = sourceParticle->x;
         destinationParticle->y = sourceParticle->y;
         destinationParticle->theta = sourceParticle->theta;
-
-        destinationParticle->accumulatedPose = sourceParticle->accumulatedPose;
     }
 }

@@ -28,6 +28,7 @@ private:
 
     D2D1_RECT_F sensorClip;
     D2D1_RECT_F slamClip;
+    D2D1_RECT_F confidenceClip;
 
     std::unordered_map<int, ID2D1SolidColorBrush*> brushes;
 

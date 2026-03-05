@@ -24,12 +24,6 @@ public:
     double nudgeY = 0.0;
     double nudgeTheta = 0.0;
 
-    //used for "back update". Particles will move while slam does it's thing,
-    //  and we want to take that into account, since motion isn't based on the map,
-    //  we're free to assume that all moves since are valid
-    //  should probably be x, y, theta
-    double accumulatedPose = 0.0;
-
     double weight = 0.0;
 
     OccupancyGrid* map = nullptr;

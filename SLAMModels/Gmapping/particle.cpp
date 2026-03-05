@@ -30,8 +30,6 @@ Particle* Particle::Copy() {
     newParticle->nudgeY = this->nudgeY;
     newParticle->nudgeTheta = this->nudgeTheta;
     
-    newParticle->accumulatedPose = this->accumulatedPose;
-
     newParticle->weight = this->weight;
     newParticle->map = this->map;
 

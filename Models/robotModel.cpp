@@ -31,7 +31,6 @@ void RobotModel::InitializeRobot(Map* map) {
     this->motionModel->GiveMap(map);
     this->sensorModel->GiveMotionModel(this->motionModel);
 
-
     if(RANDOM_START) {
         int startIndex = Utilities::GetRandomInt(0, map->GetStartsSize() - 1);
 
@@ -47,7 +46,6 @@ void RobotModel::InitializeRobot(Map* map) {
             0
         );
     }
-
 
     this->sensorModel->InitSensor();
 }

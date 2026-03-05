@@ -77,7 +77,7 @@ void GraphicsModule::InitD2D() {
 
     this->sensorClip = D2D1::RectF(
         BACKGROUND_LINE_WIDTH,
-        (CLIENT_SCREEN_HEIGHT / 2.0),
+        CLIENT_SCREEN_HEIGHT / 2.0,
         (CLIENT_SCREEN_WIDTH / 2.0) - (BACKGROUND_LINE_WIDTH / 2.0),
         CLIENT_SCREEN_HEIGHT - BACKGROUND_LINE_WIDTH
     );
@@ -87,6 +87,13 @@ void GraphicsModule::InitD2D() {
         BACKGROUND_LINE_WIDTH,
         (CLIENT_SCREEN_WIDTH / 2.0) - (BACKGROUND_LINE_WIDTH / 2.0),
         (CLIENT_SCREEN_HEIGHT / 2.0) - (BACKGROUND_LINE_WIDTH / 2.0)
+    );
+
+    this->confidenceClip = D2D1::RectF(
+        (CLIENT_SCREEN_WIDTH / 2.0) + (BACKGROUND_LINE_WIDTH / 2.0),
+        (CLIENT_SCREEN_HEIGHT / 2.0) + (BACKGROUND_LINE_WIDTH / 2.0),
+        CLIENT_SCREEN_WIDTH - (BACKGROUND_LINE_WIDTH / 2.0),
+        CLIENT_SCREEN_HEIGHT - (BACKGROUND_LINE_WIDTH / 2.0)
     );
 
     D2D1_BITMAP_PROPERTIES props2 = D2D1::BitmapProperties(
@@ -335,7 +342,14 @@ void GraphicsModule::DrawPoses() {
                     false
                 );
             }
+        }
 
+        //draw most confident pose
+        this->DrawRobot(TOP_LEFT, posePacket->poses[0], posePacket->poses[1], posePacket->poses[2], true);
+
+        // pushing axisalignedclip is expensive, so the loop is repeated per quadrant
+        this->deviceContext->PushAxisAlignedClip(this->confidenceClip, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+        for(int index = posePacket->valueSetSize; index < posePacket->numValues; index += posePacket->valueSetSize) {
             this->DrawParticle(
                 (float)(extendedPoses->poses[index]),
                 (float)(extendedPoses->poses[index + 1]),
@@ -344,9 +358,6 @@ void GraphicsModule::DrawPoses() {
                 true
             );
         }
-
-        //draw most confident pose
-        this->DrawRobot(TOP_LEFT, posePacket->poses[0], posePacket->poses[1], posePacket->poses[2], true);
 
         int strongestColor = COLOR_PALETTE_BLUE;
         if(HIGHLIGHT_STRONGEST_POSE_BOTTOM_RIGHT) {
@@ -360,6 +371,8 @@ void GraphicsModule::DrawPoses() {
             strongestColor,
             true
         );
+
+        this->deviceContext->PopAxisAlignedClip();
     }
 }
 

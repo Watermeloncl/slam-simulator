@@ -131,9 +131,9 @@ const double MOTION_MODEL_BASE_FORWARD_DEVIATION = 0.25; // (0.25)  //^^
  * */
 
  // Gmapping Configurations
-const int GMAPPING_NUM_PARTICLES = 30;     // (30) Num particles; paper suggested 30-40, though another source suggested 100... seemed a little overkill.
-const double GMAPPING_GRID_CELL_SIZE = 50; // (50) mm (min 40, max tested was 500 haha)
-const int GMAPPING_SECTOR_SIZE = 16;       // (16) Each sector is 16 x 16 cells
+const int GMAPPING_NUM_PARTICLES = 30;              // (30) Num particles; paper suggested 30-40, though another source suggested 100... seemed a little overkill.
+const double GMAPPING_GRID_CELL_SIZE = 50;          // (50) mm (min 40, max tested was 500 haha)
+const int GMAPPING_SECTOR_SIZE = 16;                // (16) Each sector is 16 x 16 cells
 
 const double GMAPPING_MAX_LOG_ODDS = 5.0;           // (5) Occupancy Grid's capped at +- this much
 const double GMAPPING_LOG_ODDS_HIT = 0.85;          // (0.85) This one was really hard to find. Theoretically, these could be based on distance. (sensor noise gets worse with distance idea)
