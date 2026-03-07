@@ -151,7 +151,7 @@ const double GMAPPING_MINIMUM_NEFF = 0.5;           // (0.5) what minimum percen
 //   just made a basic "jump" (translation) and "twist" (rotation) amount based on noise. Default was half of max noise given max velocity for minimum period. (At defaults, that's (5 * 11) * sigma / 2)
 //   Works in conjunction with GMAPPING_SCAN_MATCHING_MAX_NUDGES. If too much moving, will "snap" to a position with little variety. Too little causes crappy particles.
 const double GMAPPING_SCAN_MATCHING_NUDGE_JUMP = (MOTION_MODEL_FORWARD_DEVIATION * MOTION_MODEL_MAX_VELOCITY * SLAM_MINIMUM_PERIOD_COUNT) / 2.0;
-const double GMAPPING_SCAN_MATCHING_NUDGE_TWIST = (MOTION_MODEL_ROTATION * SLAM_MINIMUM_PERIOD_COUNT * MOTION_MODEL_ROTATION_DEVIATION) / 2.0;
+const double GMAPPING_SCAN_MATCHING_NUDGE_TWIST = (MOTION_MODEL_ROTATION_DEVIATION * MOTION_MODEL_ROTATION * SLAM_MINIMUM_PERIOD_COUNT) / 2.0;
 
 
 
