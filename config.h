@@ -53,7 +53,7 @@ const int STARTING_MAP = 1;
 
 // Optional Toggles
 const bool SHOW_POSSIBLE_STARTING_LOCATIONS = false;
-const bool SHOW_PARTICLES_TOP_LEFT = false;
+const bool SHOW_PARTICLES_TOP_LEFT = true;
 const bool HIGHLIGHT_STRONGEST_POSE_BOTTOM_RIGHT = true;
 const bool ACCOUNT_FOR_MOTION_BLUR = true;  // Just affects algorithm; sensor attempts to account regardless (you will note a small difference)
 const bool START_AI_WITH_STOP = true;       // AI starts with a single STOP command.
@@ -90,13 +90,13 @@ const double SLAM_MINIMUM_DISTANCE_PERCENT = 0.8;                               
 
 
 // Motion Model Details (suggested noise below in multi-line comment)
-const double MOTION_MODEL_ACCELERATION = 150.0 * MOTION_PERIOD; // 150 mm/s^2, converted to period amount
-const double MOTION_MODEL_MAX_VELOCITY = 300.0 * MOTION_PERIOD; // 300 mm/s, converted to period amount
+const double MOTION_MODEL_ACCELERATION = 300.0 * MOTION_PERIOD; // 150 mm/s^2, converted to period amount
+const double MOTION_MODEL_MAX_VELOCITY = 600.0 * MOTION_PERIOD; // 300 mm/s, converted to period amount
 
-const double MOTION_MODEL_ROTATION = 1.0 * MOTION_PERIOD; // 1 rad/s, or 57.2 degrees per second
-const double MOTION_MODEL_FORWARD_DEVIATION = 0.20; //0.05; //5%: hardwood floor
-const double MOTION_MODEL_FORWARD_ROTATION_DEVIATION = 0.03 * std::sqrt(MOTION_MODEL_MAX_VELOCITY / 1000); //0.02 radians per meter, growing proportional to distance
-const double MOTION_MODEL_ROTATION_DEVIATION = 0.10; //0.02; //2%: hardwood floor
+const double MOTION_MODEL_ROTATION = 2.0 * MOTION_PERIOD; // 1 rad/s, or 57.2 degrees per second
+const double MOTION_MODEL_FORWARD_DEVIATION = 0.175; //0.05; //5%: hardwood floor
+const double MOTION_MODEL_FORWARD_ROTATION_DEVIATION = 0.025 * std::sqrt(MOTION_MODEL_MAX_VELOCITY / 1000); //0.02 radians per meter, growing proportional to distance
+const double MOTION_MODEL_ROTATION_DEVIATION = 0.075; //0.02; //2%: hardwood floor
 const double MOTION_MODEL_ROTATION_FIXED = MOTION_MODEL_ROTATION_DEVIATION * std::sqrt(MOTION_PERIOD); // motion period / 1.0
 
 // I found Gmapping did better with a minimum sigma (one, because the math requires it, and two, it genuinely does better).
@@ -159,13 +159,13 @@ const double GMAPPING_SCAN_MATCHING_NUDGE_TWIST = (MOTION_MODEL_ROTATION_DEVIATI
 ////        Changeable; but be wary        /////
 ////////////////////////////////////////////////
 
-// These are changeable if you take the time to figure out the consequences.
+// These are changeable if you take the time to figure out exactly what they do.
 //   Some are untested (screen width/height). Best to see what each one is
 //   in the code before changing.
 
 // Graphics
 // Screen Size
-// Different screens render differently. Currently, projectors and my laptop like these specs.
+// Different screens render differently. Currently, average projectors and my laptop like these specs.
 //   4k monitors would hate it.
 const int CLIENT_SCREEN_WIDTH = 1280; // (1280)
 const int CLIENT_SCREEN_HEIGHT = 720; // (720)
@@ -239,7 +239,7 @@ const double GMAPPING_SCAN_MATCHING_DEFAULT_SIGMA = 85.0; // (85) I honestly hav
 const int COLOR_WALL_BRUSH = 0xFFFFFFFF; // (0xFFFFFFFF) Fear made me make this. Fear and ignorance. Powerful combo. Maybe don't mess with this either.
 
 // World in mm. Note that maps are defined in absolute positions, so if you make the width/height too small, some maps might crash.
-const int WORLD_SIZE_METERS_WIDTH = 12000; // (12000) "Meters". It's actually mm.
+const int WORLD_SIZE_METERS_WIDTH = 12000; // (12000) "Meters". It's actually mm. Silly, huh?
 const int WORLD_SIZE_METERS_HEIGHT = 6750; // (6750) "Meters". It's actually mm.
 
 

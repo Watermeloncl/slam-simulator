@@ -347,7 +347,7 @@ void GraphicsModule::DrawPoses() {
         //draw most confident pose
         this->DrawRobot(TOP_LEFT, posePacket->poses[0], posePacket->poses[1], posePacket->poses[2], true);
 
-        // pushing axisalignedclip is expensive, so the loop is repeated per quadrant
+        // Although this loop is identical, pushing axisalignedclip is expensive, so this is designed for minimizing the clipping calls
         this->deviceContext->PushAxisAlignedClip(this->confidenceClip, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
         for(int index = posePacket->valueSetSize; index < posePacket->numValues; index += posePacket->valueSetSize) {
             this->DrawParticle(

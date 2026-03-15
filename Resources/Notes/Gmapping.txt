@@ -12,13 +12,13 @@ Comments can be found in gmapping.cpp denoting functions associated with the ste
 - (shelved) Use Bilinear Interpolation to determine weighted distance between the 4 cells surrounding the hit point, to find a likelihood field score.
 If scan matching fails, rely soley on motion model.
 
-4. Sample the neighborhood (every combination of delta changes in x, y, theta) and find the covariance matrix (sum L(k) of each sample, which is equal to P(x|x-1, u) * P(z|x,m))
+4. Sample the neighborhood (every combination of delta changes in x, y, theta) and find L(k), normalization factor, and guass-mean for each sample (L(k) is equal to P(x|x-1, u) * P(z|x,m))
 
-5. Calculate the new weight of each particle, which is its old weight * covariance matrix
+5. Calculate the new weight of each particle, which is its old weight * normalization factor
 
 (skipped) 6. If new weight is 0 or rounds to 0, make pose simply based on raw odometry, and give a low penalty weight (caused impossible situation, like in a wall)
 
-7. Calculate the new pose as a an average center of gravity based on samples and L(k) (S(a) * L(ka) + ... / covariance)
+7. Calculate the new pose as a an average center of gravity based on gauss-mean
 
 8. Normalize weights of particles
 

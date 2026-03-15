@@ -302,6 +302,8 @@ void Gmapping::UpdateMaps() {
         std::unordered_set<std::pair<int, int>, pair_hash> misses;
         std::unordered_set<std::pair<int, int>, pair_hash> hits;
 
+        // If we are not accounting for motion blur, we simply "0 out" the delta variables, and
+        //    act like the scan started at the final pose.
         double poseStartX = particle->currScanX;
         double poseStartY = particle->currScanY;
         double poseStartTheta = particle->currScanTheta;
@@ -464,10 +466,11 @@ void Gmapping::GetPoints(LogField* logField, int particleIndex) {
         return;
     }
 
+    // If we are not accounting for motion blur, we simply "0 out" the delta variables, and
+    //    act like the scan started at the final pose.
     double poseStartX = particle->currScanX;
     double poseStartY = particle->currScanY;
     double poseStartTheta = particle->currScanTheta;
-
     double deltaX = 0.0;
     double deltaY = 0.0;
     double deltaTheta = 0.0;
